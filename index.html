@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plainly</title>
+  <meta name="description" content="Grammar, clarity and tone checker that keeps your own voice.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23127a5c'/%3E%3Cpath d='M9 17l5 5 9-12' stroke='white' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Documents home -->
+  <div class="view home" id="home" hidden>
+    <header class="topbar">
+      <div class="brand"><span class="logo" aria-hidden="true"></span><span class="brand-name">Plainly</span></div>
+      <div class="top-actions">
+        <button class="btn icon" data-open-settings title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.6 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1l.4 2.5h4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+        </button>
+      </div>
+    </header>
+    <main class="home-main">
+      <div class="home-head">
+        <h1>Documents</h1>
+        <div class="home-tools">
+          <input type="search" id="doc-search" class="search" placeholder="Search documents" aria-label="Search documents">
+          <button class="btn" id="btn-upload">Upload</button>
+          <button class="btn primary" id="btn-new">New document</button>
+        </div>
+      </div>
+      <div class="doc-grid" id="doc-grid"></div>
+    </main>
+  </div>
+
+  <!-- Editor -->
+  <div class="view editor-view" id="editor-view" hidden>
+    <header class="topbar">
+      <a class="btn icon back" href="#/" title="All documents" aria-label="All documents">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <div class="brand compact"><span class="logo" aria-hidden="true"></span></div>
+      <input id="title" class="doc-title" value="Untitled document" aria-label="Document title" spellcheck="false">
+      <div class="top-actions">
+        <label class="switch" title="Sends your text to LanguageTool (a rule-based checker, not AI) for spelling and advanced grammar">
+          <input type="checkbox" id="deep">
+          <span class="switch-track" aria-hidden="true"></span>
+          <span class="switch-label">Deep check</span>
+        </label>
+        <button class="btn ghost" id="btn-goals" title="Set goals for this document">Goals</button>
+        <button class="btn ghost" id="btn-perf" title="Performance report">Performance</button>
+        <details class="menu">
+          <summary class="btn ghost" title="File">File</summary>
+          <div class="menu-list" role="menu">
+            <button role="menuitem" id="btn-import">Open .txt, .md or .docx…</button>
+            <button role="menuitem" id="btn-copy">Copy all text</button>
+            <button role="menuitem" id="btn-download">Download as .txt</button>
+            <button role="menuitem" id="btn-download-docx">Download as Word (.docx)</button>
+            <hr>
+            <button role="menuitem" id="btn-clear" class="danger">Clear text</button>
+          </div>
+        </details>
+        <button class="btn icon" data-open-settings title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.6 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1l.4 2.5h4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="doc" id="doc">
+        <div class="doc-inner" id="doc-inner">
+          <div class="editor">
+            <div class="mirror" id="mirror" aria-hidden="true"></div>
+            <textarea id="input" spellcheck="false" autocomplete="off" autocapitalize="off"
+              placeholder="Type or paste your text here. Double-click any word for synonyms."
+              aria-label="Document text"></textarea>
+          </div>
+          <div class="popover" id="popover" role="dialog" hidden></div>
+        </div>
+      </section>
+
+      <aside class="panel" aria-label="Suggestions">
+        <div class="consent" id="consent" hidden>
+          <p><strong>Turn on deep check?</strong> It catches spelling mistakes and harder grammar. Your text goes to LanguageTool, a rule-based checker that doesn't rewrite or store it.</p>
+          <div class="consent-actions">
+            <button class="btn primary" id="consent-yes">Turn on</button>
+            <button class="btn ghost" id="consent-no">Not now</button>
+          </div>
+        </div>
+
+        <div class="score">
+          <svg class="ring" viewBox="0 0 44 44" aria-hidden="true">
+            <circle cx="22" cy="22" r="19" class="ring-bg"></circle>
+            <circle cx="22" cy="22" r="19" class="ring-fg" id="ring"></circle>
+          </svg>
+          <div class="score-text">
+            <div class="score-num" id="score-num">–</div>
+            <div class="score-label">Overall score</div>
+          </div>
+          <div class="score-meta" id="score-meta"></div>
+        </div>
+
+        <div class="tone" id="tone"></div>
+
+        <nav class="tabs" id="tabs" role="tablist">
+          <button role="tab" data-cat="all" class="is-on">All <b data-count="all">0</b></button>
+          <button role="tab" data-cat="correctness"><i class="dot c-correctness"></i>Correctness <b data-count="correctness">0</b></button>
+          <button role="tab" data-cat="clarity"><i class="dot c-clarity"></i>Clarity <b data-count="clarity">0</b></button>
+          <button role="tab" data-cat="engagement"><i class="dot c-engagement"></i>Engagement <b data-count="engagement">0</b></button>
+          <button role="tab" data-cat="voice"><i class="dot c-voice"></i>Delivery <b data-count="voice">0</b></button>
+        </nav>
+
+        <div class="bulk" id="bulk" hidden>
+          <button class="btn" id="btn-fix-all"></button>
+        </div>
+
+        <div class="cards" id="cards" aria-live="polite"></div>
+      </aside>
+    </main>
+
+    <footer class="status">
+      <button class="status-link" id="stat-words">0 words</button>
+      <span id="stat-chars">0 characters</span>
+      <span id="stat-time"></span>
+      <span id="stat-read"></span>
+      <span class="status-deep" id="stat-deep"></span>
+    </footer>
+  </div>
+
+  <!-- Goals -->
+  <dialog id="goals" class="sheet">
+    <form method="dialog">
+      <h2>Set goals</h2>
+      <p class="sub">Plainly tunes its suggestions to these. They're saved with this document.</p>
+      <fieldset class="field">
+        <legend>Audience</legend>
+        <div class="seg" data-goal="audience">
+          <label><input type="radio" name="audience" value="general"><span>General</span><small>Short sentences, plain words</small></label>
+          <label><input type="radio" name="audience" value="knowledgeable"><span>Knowledgeable</span><small>Some detail and jargon is fine</small></label>
+          <label><input type="radio" name="audience" value="expert"><span>Expert</span><small>Long, technical sentences are fine</small></label>
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Formality</legend>
+        <div class="seg" data-goal="formality">
+          <label><input type="radio" name="formality" value="informal"><span>Informal</span><small>Contractions and casual words are fine</small></label>
+          <label><input type="radio" name="formality" value="neutral"><span>Neutral</span><small>No formality checks</small></label>
+          <label><input type="radio" name="formality" value="formal"><span>Formal</span><small>Flags contractions and casual words</small></label>
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Domain</legend>
+        <select id="goal-domain">
+          <option value="general">General</option>
+          <option value="academic">Academic</option>
+          <option value="business">Business</option>
+          <option value="technical">Technical</option>
+          <option value="casual">Casual</option>
+          <option value="creative">Creative</option>
+        </select>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Tone</legend>
+        <label class="check"><input type="checkbox" id="goal-confident"> Sound confident (flags hedges like "I think", "maybe", "sort of")</label>
+      </fieldset>
+      <div class="dialog-actions"><button class="btn ghost" value="reset" id="goals-reset" type="button">Reset to defaults</button><button class="btn primary" value="close">Done</button></div>
+    </form>
+  </dialog>
+
+  <!-- Performance -->
+  <dialog id="perf" class="sheet wide">
+    <form method="dialog">
+      <h2>Performance</h2>
+      <div id="perf-body"></div>
+      <div class="dialog-actions"><button class="btn primary" value="close">Close</button></div>
+    </form>
+  </dialog>
+
+  <!-- Settings -->
+  <dialog id="settings" class="sheet">
+    <form method="dialog">
+      <h2>Settings</h2>
+      <label class="field">
+        <span>Spelling style</span>
+        <select id="set-dialect">
+          <option value="auto">Match what I use most</option>
+          <option value="us">American (color, organize)</option>
+          <option value="uk">British (colour, organise)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Theme</span>
+        <select id="set-theme">
+          <option value="auto">Match my system</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <fieldset class="field">
+        <legend>Check for</legend>
+        <label class="check"><input type="checkbox" data-cat-toggle="correctness"> Correctness (grammar, spelling, punctuation)</label>
+        <label class="check"><input type="checkbox" data-cat-toggle="clarity"> Clarity (wordiness, passive voice, long sentences)</label>
+        <label class="check"><input type="checkbox" data-cat-toggle="engagement"> Engagement (weak words, repetition)</label>
+        <label class="check"><input type="checkbox" data-cat-toggle="voice"> Delivery (AI-sounding phrases, goal-based tone checks)</label>
+      </fieldset>
+      <div class="field">
+        <span>Personal dictionary</span>
+        <div class="dict" id="dict"></div>
+      </div>
+      <div class="field">
+        <button type="button" class="btn ghost" id="btn-undismiss">Show dismissed suggestions again</button>
+      </div>
+      <p class="note">Plainly never rewrites your text by itself, and it has no AI model. Each suggestion changes one word, phrase or sentence using your own words and fixed grammar rules, and only when you click it. With deep check off, your text stays in this browser.</p>
+      <div class="dialog-actions"><button class="btn primary" value="close">Done</button></div>
+    </form>
+  </dialog>
+
+  <input type="file" id="file" accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
