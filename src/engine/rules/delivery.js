@@ -48,14 +48,22 @@ function formality(text, out) {
     const nextWord = (next.match(/^\s+([a-z]+)/i) || [])[1]?.toLowerCase() || '';
     const participle = /(ed|en)$/.test(nextWord) || Object.prototype.hasOwnProperty.call(IRREGULAR, nextWord) || ['been', 'got', 'gone', 'done', 'seen', 'had'].includes(nextWord);
     // 's / 'd before a past participle means has / had: "It's gone well", "I'd seen it".
-    if (key.endsWith("'s") && participle) full = `${key.slice(0, -2)} has`;
+    // "'s" + participle is "has" only when an object or "been/got/gone/done" follows ("She's left the firm").
+    // "It's based on", "He's tired" are "is" + adjective: offer no rewrite rather than guess.
+    const thenObject = /^\s+[a-z]+\s+(the|a|an|his|her|their|our|my|your|its|this|that|these|those|me|us|him|them|it|some|many|no|any|\d)\b/i.test(next);
+    let advise = false;
+    if (key.endsWith("'s") && participle) {
+      if (/^(been|got|gone|done|had)$/.test(nextWord) || thenObject) full = `${key.slice(0, -2)} has`;
+      else advise = true;
+    }
+    if (key === "let's") advise = true; // "Let us meet" changes the tone
     if (key.endsWith("'d") && (participle || /^(better|already|never)$/.test(nextWord))) full = `${key.slice(0, -2)} had`;
     if (key.startsWith("i'")) full = `I${full.slice(1)}`;
     const fix = key.startsWith("i'") ? full : matchCase(m[0], full);
     out.push({
       rule: 'formality', category: CAT, scope: 'word', start: m.index, end: m.index + m[0].length, original: m[0],
       title: 'Formal goal: spell it out', message: `You set this document to formal. "${fix}" reads more formally than "${m[0]}".`,
-      fixes: [{ text: fix, start: m.index, end: m.index + m[0].length }],
+      fixes: advise ? [] : [{ text: fix, start: m.index, end: m.index + m[0].length }],
     });
   }
   for (const { re: r, f, t: target } of INFORMAL_RE) {
@@ -86,6 +94,7 @@ function confidence(text, out) {
       taken.push([start, end]);
       const after = text.slice(end);
       const low = m[0].toLowerCase();
+      if (low === 'just' && (/^\s+[a-z]+ed\b/i.test(after) || /\b(have|has|had|I've|we've|they've)\s+$/i.test(text.slice(Math.max(0, start - 10), start)))) continue; // "we just finished" = recently
       if (low === 'just' && /\b(a|an|the|more|most|very|so)\s+$/i.test(text.slice(Math.max(0, start - 6), start))) continue; // "a just process"
       if (low === 'just' && /^\s+(as|like|because|in time|now|then|after|before|one|a|an|the|\d|two|three|four|five|ten|over|under|about|enough)\b/i.test(after)) continue; // "just one" = "only one"
       if ((low === 'a bit' || low === 'a little bit') && /^\s+of\b/i.test(after)) continue; // "a bit of a problem"

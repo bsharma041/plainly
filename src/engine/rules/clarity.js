@@ -46,8 +46,14 @@ function wordy(text, out) {
 
 function plainWords(text, out) {
   for (const w of words(text)) {
-    const plain = PLAIN_WORDS[w.text.toLowerCase()];
+    let plain = PLAIN_WORDS[w.text.toLowerCase()];
     if (!plain) continue;
+    // After has/have/had/been, a past participle is needed: "has demonstrated" -> "has shown", not "has showed".
+    const prev = (text.slice(Math.max(0, w.start - 12), w.start).match(/([a-z]+)\s+$/i) || [])[1]?.toLowerCase();
+    if (/^(has|have|had|been|being|is|are|was|were|be)$/.test(prev || '')) {
+      const participle = { showed: 'shown' }[plain];
+      if (participle) plain = participle;
+    }
     out.push({
       rule: 'plain-word', category: CAT, scope: 'word', start: w.start, end: w.end, original: w.text,
       title: `Try "${plain}"`, message: `"${plain}" is plainer than "${w.text.toLowerCase()}" and means the same here.`,
@@ -66,7 +72,7 @@ function longSentences(text, out, limit) {
       original: s.text,
       title: 'Long sentence',
       message: options.length
-        ? `This sentence has ${n} words, and readers lose track past about ${limit}. Each option below splits it at a natural break using only your words.`
+        ? `This sentence has ${n} words, and readers lose track past about ${limit}. Each option below splits it at a natural break. Your words stay as they are; at most a short linking word (This, But, However) is added.`
         : `This sentence has ${n} words, and readers lose track past about ${limit}. There's no clean break to split at automatically; try ending the sentence after the main point.`,
       fixes: options.map((o) => ({ text: o.text, start: s.start, end: s.end, label: o.label, preview: o.text })),
     });
@@ -97,6 +103,8 @@ function passive(text, out) {
       if (!/^\s+by\s+\w/i.test(rest)) continue;
     }
     const start = m.index, end = start + m[0].length;
+    // "The printer is fixed now": a state, not an action.
+    if (/^\s+(now|already|yet|again)\b/i.test(text.slice(end, end + 10))) continue;
     const s = sentences.find((x) => x.start <= start && end <= x.end);
     const hasAgent = s && /\bby\s+\w/i.test(text.slice(end, s.end));
     const options = s ? passiveToActive(s.text, { weWriter, at: start - s.start, kind }) : [];

@@ -56,7 +56,9 @@ function toSuggestion(match, offset, text) {
     start, end, original,
     scope: 'word',
     spelling: isSpelling,
-    fixes: (match.replacements || []).slice(0, 4).map((r) => ({ text: r.value, start, end })),
+    // Short, single-span replacements only (no multi-word rephrasing).
+    fixes: (match.replacements || []).filter((r) => typeof r.value === 'string' && r.value.trim().split(/\s+/).length <= 3)
+      .slice(0, 4).map((r) => ({ text: r.value, start, end })),
     source: 'languagetool',
   };
 }
@@ -69,9 +71,12 @@ export async function checkWithLanguageTool(text, { language = 'en-US', signal }
   if (!text.trim()) return [];
   const results = [];
   for (const part of chunk(text)) {
+    // Free, rule-based checking only. Never add apiKey/username here: that would
+    // unlock premium and model-driven rules.
     const body = new URLSearchParams({
       text: part.text,
       language,
+      level: 'default',
       disabledRules: DISABLED_RULES,
       enabledOnly: 'false',
     });
@@ -87,6 +92,8 @@ export async function checkWithLanguageTool(text, { language = 'en-US', signal }
     const data = await res.json();
     for (const m of data.matches || []) {
       if (VOICE_SAFE_SKIP.test(m.rule?.id || '')) continue;
+      // Skip anything premium or model-driven (LanguageTool's AI_* rule family), even if the server sends it.
+      if (m.rule?.isPremium || /^AI_|HYDRA|LECTOR|GPT|NEURAL|_ML_|LLM/i.test(m.rule?.id || '')) continue;
       results.push(toSuggestion(m, part.offset, text));
     }
   }

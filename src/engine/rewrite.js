@@ -199,7 +199,7 @@ export function passiveToActive(sentence, { weWriter = false, at = null, kind = 
   if (agent) return [finish(agent, 'Rewrite in active voice')];
   const out = [];
   if (weWriter) out.push(finish('we', 'Rewrite with "we" as the actor'));
-  out.push(finish('someone', 'Rewrite and name the actor', true));
+  out.push(finish('someone', 'Template: replace "someone" with who did it', true));
   return out;
 }
 

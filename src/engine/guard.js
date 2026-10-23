@@ -65,17 +65,26 @@ function editDistance(a, b) {
   return dp[a.length][b.length];
 }
 
+const INFLECTION = /^(s|es|ed|d|ing|er|ers|est|ly|n|en|'s|’s)?$/;
+
 /** Is `w` a form of one of the writer's own words (inflection, spelling variant or typo fix)? */
 function isFormOf(w, own) {
   for (const o of own) {
     if (w === o) return true;
-    const stem = Math.min(w.length, o.length) >= 4 ? 4 : 3;
-    if (w.length >= 3 && o.length >= 3 && w.slice(0, stem) === o.slice(0, stem)) return true; // reviewed -> reviews, organise -> organize
-    if (o.length >= 4 && editDistance(w, o) <= 2) return true; // sentnce -> sentence
     if (IRREGULAR[o] === w || IRREGULAR_BASE[o] === w) return true; // written -> wrote / write
+    // Inflection of a short word: cut -> cutting, ban -> banned
+    if (o.length >= 3 && w.startsWith(o) && INFLECTION.test(w.slice(o.length).replace(/^(.)\1?/, (m) => (m.length === 2 && m[0] === m[1] ? '' : m)))) return true;
+    if (o.length >= 3 && o.startsWith(w) && o.length - w.length <= 3) return true; // approved -> approve
+    // Same stem and nearly the same word: organise/organize, reviewed/reviews, travelled/traveled
+    if (w.length >= 5 && o.length >= 5 && w.slice(0, 5) === o.slice(0, 5) && editDistance(w, o) <= 3) return true;
+    // Typo fix: one letter off for short words, two for longer ones (sentnce -> sentence)
+    if (editDistance(w, o) <= (Math.min(w.length, o.length) < 6 ? 1 : 2)) return true;
   }
   return false;
 }
+
+const NEGATION = /^(not|never|no|none|nobody|nothing|neither|nor|cannot|without|dont|doesnt|didnt|isnt|arent|wasnt|werent|cant|couldnt|shouldnt|wouldnt|havent|hasnt|hadnt|wont|aint|neednt|mustnt)$|n't$/;
+const negations = (list) => list.filter((w) => NEGATION.test(w)).length;
 
 // Phrases the "Delivery" checks flag as AI-sounding; a fix must not create one.
 const AI_PHRASE_RE = new RegExp(`(?<![A-Za-z])(${AI_PHRASES.map(([p]) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "['’]")).join('|')})(?![A-Za-z])`, 'gi');
@@ -86,11 +95,18 @@ const countAiPhrases = (s) => (s.match(AI_PHRASE_RE) || []).length;
  * @param {{start:number,end:number,text:string}} fix
  * @returns {{ ok: boolean, reason?: string }}
  */
-export function checkFix(text, fix) {
+export function checkFix(text, fix, { remote = false } = {}) {
   const before = text.slice(fix.start, fix.end);
   const after = fix.text;
-  const own = new Set(tokens(before));
-  const added = tokens(after).filter((w) => !own.has(w));
+  const beforeTokens = tokens(before);
+  const afterTokens = tokens(after);
+  const own = new Set(beforeTokens);
+  const added = afterTokens.filter((w) => !own.has(w));
+
+  // A fix may never flip meaning by adding a negation ("approved" -> "did not approve").
+  if (negations(afterTokens) > negations(beforeTokens)) return { ok: false, reason: 'adds a negation' };
+  // Outside (deep-check) fixes stay small and local: no rephrasing of whole clauses.
+  if (remote && (beforeTokens.length > 4 || added.length > 2)) return { ok: false, reason: 'remote fix too large' };
 
   for (const w of added) {
     if (isAiWord(w)) return { ok: false, reason: `adds AI-filler word "${w}"` };
@@ -107,10 +123,11 @@ export function checkFix(text, fix) {
   return { ok: true };
 }
 
-export const isSafeFix = (text, fix) => checkFix(text, fix).ok;
+export const isSafeFix = (text, fix, opts) => checkFix(text, fix, opts).ok;
 
 /** Strip unsafe fixes from a suggestion. A suggestion with none left becomes advice only. */
 export function guardSuggestion(text, s) {
-  const fixes = s.fixes.filter((f) => isSafeFix(text, f));
+  const remote = s.source === 'languagetool';
+  const fixes = s.fixes.filter((f) => isSafeFix(text, f, { remote }));
   return fixes.length === s.fixes.length ? s : { ...s, fixes };
 }

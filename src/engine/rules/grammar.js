@@ -33,6 +33,8 @@ function commaSplices(text, out) {
       const thirdSing = /^(he|she|it|this|there)$/i.test(m[1]);
       const verbish = AUX.has(verb) || /ed$/.test(verb) || (thirdSing && /[^s]s$/.test(verb) && verb.length > 3);
       if (!verbish) continue;
+      // "Costs rose, it seems." is a reporting tag, not a second sentence.
+      if (/^,\s+\S+\s+\S+\s*[.!?]?\s*$/.test(s.text.slice(m.index))) continue;
       // Left side: from the last clause boundary to the comma.
       const leftAll = s.text.slice(0, m.index);
       const left = leftAll.split(/[;:—]/).pop().trim();
@@ -93,6 +95,13 @@ function verbForms(text, out) {
   const perfect = new RegExp(`\\b(has|have|had|having|'ve|’ve)\\s+(${Object.keys(PAST_TO_PARTICIPLE).join('|')})\\b`, 'gi');
   while ((m = perfect.exec(text))) {
     if (insideQuotes(text, m.index)) continue;
+    // "Everything we had came from donations": "we had" is a relative clause, "came" is the main verb.
+    const p1 = prevWord(text, m.index);
+    if (/^(i|we|you|they|he|she|it)$/.test(p1)) {
+      const beforeP1 = text.slice(0, m.index).replace(/\s*[A-Za-z'’]+\s*$/, '');
+      const p2 = (beforeP1.match(/([A-Za-z'’]+)\s*$/) || [])[1]?.toLowerCase();
+      if (p2 && !/[.!?;:,]\s*$/.test(beforeP1) && !/^(and|but|so|then|because|if|when|since|now|today|yesterday|recently|already|finally)$/.test(p2)) continue;
+    }
     const at = m.index + m[0].length - m[2].length;
     const fix = matchCase(m[2], PAST_TO_PARTICIPLE[m[2].toLowerCase()]);
     out.push(make('verb-form', at, at + m[2].length, m[2], [fix], `Use "${fix}"`, `After "${m[1]}", use the past participle "${fix}".`));
@@ -101,6 +110,7 @@ function verbForms(text, out) {
   while ((m = doPast.exec(text))) {
     const aux = m[1].toLowerCase();
     const v = m[3].toLowerCase();
+    if (/^(Will|May|Can|Should)$/.test(m[1])) continue; // "Will ran the meeting": a name, not the modal
     if (insideQuotes(text, m.index)) continue;
     // "to left", "to said" are errors; but "to found a company", "can found" etc. are rare real verbs.
     if (v === 'saw' || v === 'found') continue; // "used to saw logs", "will found a unit" are real verbs
@@ -154,7 +164,13 @@ function contractions(text, out) {
     if (m[0] === 'IM' || m[0] === 'IVE') continue; // acronyms
     if (/^[A-Z]/.test(m[0]) && !isSentenceStart(text, m.index)) continue; // names: Jony Ive
     const fix = low === 'im' || low === 'ive' ? CONTRACTIONS[low] : matchCase(m[0], CONTRACTIONS[low]);
-    out.push(make('apostrophe', m.index, m.index + m[0].length, m[0], [fix], `Write "${fix}"`, 'This contraction needs an apostrophe.'));
+    const fixes = [fix];
+    // "the library dont have": a singular subject needs "doesn't". Offer it first when the subject isn't plural.
+    if (low === 'dont') {
+      const pw = prevWord(text, m.index);
+      if (/^(he|she|it|this|that)$/.test(pw) || (pw && !/^(i|you|we|they|these|those|people)$/.test(pw) && !/s$/.test(pw))) fixes.unshift(matchCase(m[0], "doesn't"));
+    }
+    out.push(make('apostrophe', m.index, m.index + m[0].length, m[0], fixes, `Write "${fix}"`, 'This contraction needs an apostrophe.'));
   }
   const dup = /([,;:])\1+|(?<!\.)\.\.(?!\.)/g; // "!!" and "??" are style, left alone
   while ((m = dup.exec(text))) {

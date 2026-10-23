@@ -291,7 +291,9 @@ function actionButtons(s) {
 const BULK_SAFE = new Set(['lowercase-i', 'repeated-word', 'sentence-case', 'space-before-punct', 'space-after-comma', 'double-punct', 'apostrophe', 'capitalize', 'confusion', 'dialect', 'verb-form', 'double-space']);
 function bulkFixes() {
   return state.suggestions.filter((s) => s.category === 'correctness' && s.scope === 'word' && s.fixes.length && !s.fixes[0].preview
-    && (BULK_SAFE.has(s.rule) || (s.source === 'languagetool' && s.fixes.length === 1)));
+    // Deep-check matches join only when they're plain spelling fixes with one candidate.
+    && s.fixes.length === 1 // more than one option means a choice for the writer
+    && (BULK_SAFE.has(s.rule) || (s.source === 'languagetool' && s.spelling)));
 }
 
 function renderCards() {

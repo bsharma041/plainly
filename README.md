@@ -25,7 +25,16 @@ Every rewrite shows a preview with the changed words highlighted before you acce
 
 ## The no-AI-text guarantee
 
-Before any fix appears, a guard (`src/engine/guard.js`) checks it. Fixes from deep check go through the same guard. It rejects any fix that adds words that aren't yours, aren't a form of your words, and aren't in the tool's fixed word lists. It also rejects any fix that adds AI-filler vocabulary in any form, creates an AI-sounding phrase or adds an em dash. Tests cover both sides: generated text is rejected, and every real fix passes.
+There's no AI model in the tool. Every built-in correction comes from code you can read: fixed grammar rules (src/engine/rules, rewrite.js, morph.js) and fixed word lists (src/engine/data). Deep check uses LanguageTool's free, rule-based checks only. Premium and model-driven rule types are filtered out, and only short single-span replacements are kept. Synonyms come from a built-in list and from Datamuse, a dictionary database. You pick each one yourself, and AI-filler words are filtered out first.
+
+On top of that, a safety net (src/engine/guard.js) checks every fix before it appears. It drops a fix if it:
+- brings in words that aren't yours, a close form of yours, or from the fixed lists
+- adds AI-filler vocabulary in any form
+- adds a "not" or other negation
+- creates an AI-sounding phrase or an em dash
+- grows the text by more than four words (deep-check fixes are limited even further)
+
+A final independent review traced every way text can enter your document and confirmed the no-AI requirement is met.
 
 ## Run it locally
 

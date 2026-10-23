@@ -22,7 +22,9 @@ Rule 6 is enforced in code, not just by design. `src/engine/guard.js` checks eve
 - it creates an AI-sounding phrase that wasn't in the sentence before, or adds an em dash;
 - it makes the text more than four words longer.
 
-`tests/guard.test.js` proves both directions: generated or AI-styled rewrites are rejected, and every fix every rule produces on a realistic document passes. Synonym lists run through the same AI-word filter.
+The guarantee itself comes from the deterministic rules; the guard is a safety net that also covers deep check. It additionally rejects any fix that adds a negation, and limits deep-check fixes to short single-span edits (at most two new words). LanguageTool matches flagged premium or from its model-driven `AI_*` rule family are discarded. Synonyms skip the guard on purpose: they are single dictionary words the writer picks from a list, and the AI-word filter runs on that list first.
+
+`tests/guard.test.js` and `tests/guard-remote.test.js` prove both directions: generated or AI-styled rewrites are rejected, and every fix every rule produces on a realistic document passes. Synonym lists run through the same AI-word filter.
 
 ## Stack decision
 
