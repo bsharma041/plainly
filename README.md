@@ -17,7 +17,7 @@ Also: a documents home page, goals per document (audience, formality, domain, to
 
 ## How the rewrites work without AI
 
-Passive to active: the sentence is parsed into opener, subject, verb group, actor and the rest. Fixed rules reorder it and conjugate the verb ("The report was reviewed by the team" becomes "The team reviewed the report"; "has been", "will be", "is being" and negatives are handled too). If the actor is missing, it offers "we" (only if you write with "we") or a placeholder "someone" that it selects for you to type over. If a sentence doesn't match a shape it knows is safe, it doesn't offer a rewrite.
+Passive to active: the sentence is parsed into opener, subject, verb group, actor and the rest. Fixed rules reorder it and conjugate the verb ("The report was reviewed by the team" becomes "The team reviewed the report"; "has been", "will be", "is being" and negatives are handled too). If the actor is missing, it offers "we" (only if you write with "we"); a placeholder "someone" option exists but is off by default. In academic and technical documents passive voice gets advice only. If a sentence doesn't match a shape it knows is safe, it doesn't offer a rewrite.
 
 Long sentences: it splits at natural breaks (semicolons, ", but", ", and" before a new clause, ", which", "because", "although") and adds only fixed openers like "This", "But" or "However".
 

@@ -1,12 +1,18 @@
-import { WORDY, PLAIN_WORDS, ADJECTIVE_PARTICIPLES, NOT_PARTICIPLES, IRREGULAR } from '../data/lists.js';
+import { WORDY, REDUNDANCY, PLAIN_WORDS, ADJECTIVE_PARTICIPLES, NOT_PARTICIPLES, IRREGULAR } from '../data/lists.js';
 import { passiveToActive, splitSentence } from '../rewrite.js';
+import { UN_VERBS } from '../data/usage-lists.js';
 import { matchCase, splitSentences, words, escapeRegex, isSentenceStart, capitalize } from '../text.js';
 
 const DETERMINERS = /^\s+(the|this|these|those|their|our|its|his|her|my|your|them|us|it|which|whom)\b/i;
 
 const CAT = 'clarity';
 
-const WORDY_RE = WORDY.map(([from, to]) => ({ re: new RegExp(`\\b${escapeRegex(from)}\\b`, 'gi'), from, to }));
+const WORDY_RE = [
+  ...WORDY.map(([from, to]) => ({ re: new RegExp(`\\b${escapeRegex(from)}\\b`, 'gi'), from, to, rule: 'wordy' })),
+  ...REDUNDANCY.map(([from, to]) => ({ re: new RegExp(`\\b${escapeRegex(from)}\\b`, 'gi'), from, to, rule: 'redundancy' })),
+  // "in the year 2020" -> "in 2020"
+  { re: /\bin the year (?=\d{4}\b)/gi, from: 'in the year', to: 'in', rule: 'redundancy' },
+];
 
 /** Build a fix that deletes or replaces a phrase while keeping spacing and sentence case right. */
 export function phraseFix(text, start, end, replacement) {
@@ -27,18 +33,22 @@ export function phraseFix(text, start, end, replacement) {
 }
 
 function wordy(text, out) {
-  for (const { re, to } of WORDY_RE) {
+  for (const { re, to, rule } of WORDY_RE) {
     re.lastIndex = 0;
     let m;
     while ((m = re.exec(text))) {
       const start = m.index, end = start + m[0].length;
       // "the majority of the members" -> "most of the members", not "most the members"
       const target = to === 'most' && DETERMINERS.test(text.slice(end, end + 12)) ? 'most of' : to;
+      const orig = m[0].trim();
+      const e = start + orig.length;
       out.push({
-        rule: 'wordy', category: CAT, scope: 'word', start, end, original: m[0],
+        rule, category: CAT, scope: 'word', start, end: e, original: orig,
         title: target ? `Shorten to "${target}"` : 'Remove filler',
-        message: target ? `"${m[0]}" can be said as "${target}".` : `"${m[0]}" adds words without adding meaning.`,
-        fixes: [phraseFix(text, start, end, target)],
+        message: rule === 'redundancy'
+          ? `"${orig}" repeats an idea: "${target}" already says it.`
+          : target ? `"${orig}" can be said as "${target}".` : `"${orig}" adds words without adding meaning.`,
+        fixes: [phraseFix(text, start, e, target)],
       });
     }
   }
@@ -55,7 +65,7 @@ function plainWords(text, out) {
       if (participle) plain = participle;
     }
     out.push({
-      rule: 'plain-word', category: CAT, scope: 'word', start: w.start, end: w.end, original: w.text,
+      rule: 'plain-word', category: CAT, severity: 'style', scope: 'word', start: w.start, end: w.end, original: w.text,
       title: `Try "${plain}"`, message: `"${plain}" is plainer than "${w.text.toLowerCase()}" and means the same here.`,
       fixes: [{ text: matchCase(w.text, plain), start: w.start, end: w.end }],
     });
@@ -68,7 +78,7 @@ function longSentences(text, out, limit) {
     if (n <= limit) continue;
     const options = splitSentence(s.text, limit);
     out.push({
-      rule: 'long-sentence', category: CAT, scope: 'sentence', start: s.start, end: s.end,
+      rule: 'long-sentence', category: CAT, severity: 'style', scope: 'sentence', start: s.start, end: s.end,
       original: s.text,
       title: 'Long sentence',
       message: options.length
@@ -82,9 +92,15 @@ function longSentences(text, out, limit) {
 const BE = '(am|is|are|was|were|be|been|being|get|gets|got|gotten)';
 const PASSIVE_RE = new RegExp(`\\b${BE}\\s+(?:(\\w+ly)\\s+)?([A-Za-z]{3,}ed|${Object.keys(IRREGULAR).join('|')})\\b`, 'gi');
 
-function passive(text, out) {
+const PRESENTATION = new Set(['shown', 'presented', 'given', 'listed', 'summarised', 'summarized', 'reported', 'illustrated', 'depicted']);
+
+function passive(text, out, opts = {}) {
+  const academic = opts.domain === 'academic' || opts.domain === 'technical';
   const sentences = splitSentences(text);
-  const weWriter = (text.match(/\b(we|our|us)\b/gi) || []).length >= 2;
+  // The writer uses "we": two uses of we/our/us, or a sentence that starts with "We" (round 3, ruling P test).
+  // A "We" inside quotation marks is someone else's voice and doesn't count (round 4, ruling 2).
+  const unquoted = text.replace(/"[^"\n]*"|“[^”\n]*”/g, ' ');
+  const weWriter = (unquoted.match(/\b(we|our|us)\b/gi) || []).length >= 2 || /(^|[.!?]["'”’)]*\s+|\n\s*)We\b/.test(unquoted);
   // How does this document use a word? Lowercase anywhere = common noun; capitalised mid-sentence = name.
   const kind = (word) => {
     const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -97,6 +113,7 @@ function passive(text, out) {
   while ((m = PASSIVE_RE.exec(text))) {
     const participle = m[3].toLowerCase();
     if (ADJECTIVE_PARTICIPLES.has(participle) || NOT_PARTICIPLES.has(participle)) continue;
+    if (/^un/.test(participle) && !UN_VERBS.has(participle)) continue; // "unprecedented", "unaffected": adjectives
     if (/^(get|gets|got|gotten)$/i.test(m[1])) {
       // "get started", "got married": only a real passive when an actor follows ("got hit by").
       const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 40);
@@ -107,19 +124,37 @@ function passive(text, out) {
     if (/^\s+(now|already|yet|again)\b/i.test(text.slice(end, end + 10))) continue;
     const s = sentences.find((x) => x.start <= start && end <= x.end);
     const hasAgent = s && /\bby\s+\w/i.test(text.slice(end, s.end));
-    const options = s ? passiveToActive(s.text, { weWriter, at: start - s.start, kind }) : [];
+    // Round 3 (ruling P): agentless passives get "we" first (for we-writers), then a visible "[who]" template,
+    // never "Someone" (that stays only behind the test option passiveTemplate).
+    const placeholder = opts.passiveTemplate ? 'someone' : '[who]';
+    // A one-word plural subject with a plural verb ("Mistakes were made.") is a common noun, not a name.
+    const sentKind = (w) => kind(w) || (s && /^[A-Z][a-z]+[^s'’]s$/.test(w) && new RegExp(`^${w}\\s+(were|are|have\\s+been)\\b`).test(s.text) ? 'common' : null);
+    let options = s ? passiveToActive(s.text, { weWriter, at: start - s.start, kind: sentKind, placeholder }) : [];
+    // Round 4 (F4): presentation and citation passives ("The results are shown in Table 3.") have no
+    // meaningful actor, so no "[who]" template. Advice and any "we"/agent rewrite stay.
+    if (s) {
+      const tail = text.slice(end, s.end).replace(/[.!?"'”’)\s]+$/, '').trim();
+      const cites = /^(in|on|at)\s+(table|figure|fig\.?|section|chapter|appendix|annex|box|page)\b/i.test(tail) || /^(below|above|overleaf)\b/i.test(tail);
+      if (cites || (tail && PRESENTATION.has(participle))) options = options.filter((o) => !o.template);
+    }
     const withActor = options.some((o) => o.label === 'Rewrite in active voice');
     out.push({
-      rule: 'passive', category: CAT, scope: 'word', start, end, original: m[0],
+      rule: 'passive', category: CAT, scope: 'word', start, end, original: m[0], ...(academic ? { severity: 'style' } : {}),
       title: 'Passive voice',
-      message: withActor
+      message: academic
+        ? (options.length
+          ? 'Passive voice is normal in academic writing; use this only if naming the actor helps.'
+          : 'Passive voice is normal in academic and technical writing. Keep it unless naming the actor makes the point clearer.')
+        : options.some((o) => o.template) && !options.some((o) => !o.template)
+          ? 'Passive voice hides who did this. The template below puts the actor first: type who did it over "[who]". Keep the passive if the actor doesn\'t matter.'
+          : withActor
         ? 'Passive voice puts the actor at the end. The active version below names them first, using your words.'
         : options.length
           ? 'Passive voice hides who did this. If you name the actor the sentence gets more direct. Keep it as is if the actor doesn\'t matter.'
           : hasAgent
             ? 'This is passive voice. This sentence is too complex to rewrite safely; try starting with whoever did the action.'
             : 'This is passive voice. It\'s fine when the actor doesn\'t matter; otherwise say who did it.',
-      fixes: options.map((o) => ({ text: o.text, start: s.start, end: s.end, label: o.label, preview: o.text, select: o.select })),
+      fixes: options.map((o) => ({ text: o.text, start: s.start, end: s.end, label: o.label, preview: o.text, select: o.select, ...(o.template ? { template: true } : {}) })),
     });
   }
 }
@@ -129,6 +164,6 @@ export function clarityRules(text, opts) {
   wordy(text, out);
   if (opts.plainWords !== false) plainWords(text, out);
   longSentences(text, out, opts.longSentence || 30);
-  passive(text, out);
+  passive(text, out, opts);
   return out;
 }

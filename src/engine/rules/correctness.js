@@ -37,7 +37,7 @@ function repeatedWords(text, out) {
   }
 }
 
-function wantsAn(word) {
+export function wantsAn(word) {
   // "an X-ray", "an F-16", "a T-shirt": a single letter is read by its name.
   if (/^[a-z]-/i.test(word)) return /^[aefhilmnorsx]-/i.test(word);
   if (AN_BEFORE_CONSONANT_LETTER.test(word)) return true;

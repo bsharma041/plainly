@@ -3,8 +3,9 @@
 // doesn't fit a pattern we know is safe, we return nothing rather than guess.
 
 import { IRREGULAR, ADJECTIVE_PARTICIPLES, NOT_PARTICIPLES } from './data/lists.js';
-import { baseForm, pastTense, thirdPerson, ingForm, isPluralSubject } from './morph.js';
+import { baseForm, pastTense, thirdPerson, ingForm, isPluralSubject, IRREGULAR_BASE } from './morph.js';
 import { words, capitalize } from './text.js';
+import { BASE_VERBS, UN_VERBS } from './data/usage-lists.js';
 
 const PARTICIPLE = `[A-Za-z]{3,}ed|${Object.keys(IRREGULAR).join('|')}`;
 const MODALS = 'will|would|shall|should|can|could|may|might|must';
@@ -23,7 +24,8 @@ const OBJ_TO_SUBJ = { me: 'I', us: 'we', him: 'he', her: 'she', them: 'they', yo
 const LOWER_START = /^(The|A|An|This|That|These|Those|Our|My|Your|Their|His|Her|Its|Some|Many|Most|Each|Every|All|Both|No|Several|Few|Any|One|Two|Three|Four|Five)\b/;
 const OPENERS = /^(in|on|at|during|after|before|since|for|by|with|from|under|over|when|while|although|though|if|because|yesterday|today|tomorrow|last|next|then|now|however|also|thus|so|here|there|it|what|which|who)\b/i;
 // Where the "by" phrase ends and the rest of the sentence picks up again.
-const AGENT_STOP = /\s+(?=(?:in|on|at|during|after|before|for|with|under|over|since|through|across|within|because|while|when|to|from|into|as|last|this|next|until|without|despite|via|per|using|following)\b)/i;
+// Round 4 (F5): trailing time adverbials ("every year", "annually") stay at the end.
+const AGENT_STOP = /\s+(?=(?:in|on|at|during|after|before|for|with|under|over|since|through|across|within|because|while|when|to|from|into|as|last|this|next|until|without|despite|via|per|using|following|annually|monthly|weekly|daily|yearly|(?:every|each)\s+(?:day|week|month|quarter|year))\b)/i;
 
 // Pronoun lookup that ignores all-caps words: "IT" is the department, not "it".
 const pron = (map, s) => (s.length > 1 && s === s.toUpperCase() ? undefined : map[s.toLowerCase()]);
@@ -118,17 +120,24 @@ function activeVerb(group, adverb, participle, agent) {
  * options (empty if the sentence isn't a shape we can rewrite safely).
  * `weWriter`: the document uses "we", so "we" is a fair guess for a missing actor.
  */
-export function passiveToActive(sentence, { weWriter = false, at = null, kind = null } = {}) {
+export function passiveToActive(sentence, { weWriter = false, at = null, kind = null, placeholder = 'someone' } = {}) {
   VERB_GROUP.lastIndex = 0;
   let vg;
   while ((vg = VERB_GROUP.exec(sentence))) {
     const part = vg[3].toLowerCase();
     if (ADJECTIVE_PARTICIPLES.has(part) || NOT_PARTICIPLES.has(part)) continue;
+    if (/^un/.test(part) && !UN_VERBS.has(part)) continue; // "unprecedented", "unaffected" are adjectives
     // When a specific passive was flagged, rewrite that one, not an earlier one.
     if (at == null || (vg.index <= at && at < vg.index + vg[0].length)) break;
   }
   if (!vg) return [];
   const [whole, group, adverb, participle] = vg;
+  // Only re-inflect verbs we know: "unprecedented" must never become "unprecedents".
+  const lowPart = participle.toLowerCase();
+  const knownVerb = Boolean(IRREGULAR_BASE[lowPart]) || BASE_VERBS.has(baseForm(lowPart));
+  // Round 3 (F7): with a "by" agent, a regular -ed participle is a verb even if it isn't in BASE_VERBS
+  // ("was chaired by"), unless it carries a negative prefix ("unaffected", "misplaced").
+  const regularEd = /ed$/.test(lowPart) && !/^(un|in|dis|mis|non)/.test(lowPart) && !ADJECTIVE_PARTICIPLES.has(lowPart);
 
   // Split what comes before the verb into an optional opener ("In 2020, ") and the subject.
   const before = sentence.slice(0, vg.index).replace(/\s+$/, '');
@@ -153,6 +162,21 @@ export function passiveToActive(sentence, { weWriter = false, at = null, kind = 
   if (/^\s*to\s+(?!(the|a|an|our|their|his|her|its|my|your|this|these|those|all|each|every|me|us|him|them)\b)\w/i.test(after)) return []; // "is expected to rise"
   if (/[;:]/.test(after)) return [];
 
+  // Round 4 (F3): "were built and maintained by the state": two coordinated participles share the object.
+  // More than two, or "and" starting a new clause ("were built and the bridges were repaired"), is refused.
+  let participle2 = null;
+  const coord = after.match(new RegExp(`^\\s+and\\s+(?:(\\w+ly)\\s+)?(${PARTICIPLE})\\b`, 'i'));
+  if (coord) {
+    if (coord[1]) return [];
+    participle2 = coord[2];
+    const lp2 = participle2.toLowerCase();
+    if (ADJECTIVE_PARTICIPLES.has(lp2) || NOT_PARTICIPLES.has(lp2) || (/^un/.test(lp2) && !UN_VERBS.has(lp2))) return [];
+    after = after.slice(coord[0].length);
+    if (new RegExp(`^\\s*,?\\s*(and|or)\\s+(${PARTICIPLE})\\b`, 'i').test(after)) return [];
+  } else if (/^\s*,?\s+(and|or|but)\b/i.test(after)) {
+    return [];
+  }
+
   const byIdx = after.search(/\sby\s/i);
   let mid = '', agent = '', tail = '';
   if (byIdx >= 0) {
@@ -164,7 +188,22 @@ export function passiveToActive(sentence, { weWriter = false, at = null, kind = 
     const commaAt = rest.indexOf(',');
     let agentText = commaAt >= 0 ? rest.slice(0, commaAt) : rest;
     const stop = agentText.search(AGENT_STOP);
-    if (stop > 0) agentText = agentText.slice(0, stop);
+    if (stop > 0) {
+      // Round 4 (F2): "by a team based in Delhi": a participle before the stop starts a reduced relative clause
+      // that belongs to the agent. Keep it whole, or refuse when that is unsafe.
+      const cut = agentText.slice(0, stop);
+      const last = cut.trim().split(/\s+/).pop().toLowerCase();
+      const isParticiple = /^[a-z]+(ed|ing)$/.test(last) || Object.prototype.hasOwnProperty.call(IRREGULAR, last)
+        || Object.values(IRREGULAR).includes(last) || Object.prototype.hasOwnProperty.call(IRREGULAR_BASE, last);
+      if (isParticiple) {
+        if (commaAt >= 0 || /\sby\s/i.test(agentText) || /\b(which|who|whom|whose|that)\b/i.test(agentText)) return [];
+      } else {
+        // Round 5 (G2): "by a bank from Mumbai", "by a trust with links to the state": from/with/without/of/like/near
+        // usually modify the agent noun, and moving them after the object would change what they modify. Refuse.
+        if (/^\s+(from|with|without|of|like|near)\b/i.test(agentText.slice(stop))) return [];
+        agentText = cut;
+      }
+    }
     agent = agentText.trim();
     tail = rest.slice(agentText.length).replace(/\s+$/, '');
     if (!agent || words(agent).length > 7 || /\b(which|who|that)\b/i.test(agent)) return [];
@@ -180,11 +219,24 @@ export function passiveToActive(sentence, { weWriter = false, at = null, kind = 
     if (STATE_PARTICIPLES.has(participle.toLowerCase())) return []; // "is set for Monday" is a state, not an action
   }
 
+  if (!knownVerb && !(agent && regularEd)) return [];
+  if (participle2) {
+    const lp2 = participle2.toLowerCase();
+    const known2 = Boolean(IRREGULAR_BASE[lp2]) || BASE_VERBS.has(baseForm(lp2));
+    if (!known2 && !(agent && /ed$/.test(lp2) && !/^(in|dis|mis|non)/.test(lp2))) return [];
+  }
   const atStart = prefix === '';
   const object = asObject(subject, atStart, kind);
   if (object == null) return [];
   const finish = (actor, label, select) => {
-    const verb = activeVerb(group, adverb, participle, actor);
+    let verb = activeVerb(group, adverb, participle, actor);
+    if (participle2) {
+      // Same auxiliaries, two main verbs: "built and maintained", "has built and maintained", "did not build and maintain".
+      const v1 = verb.split(' ');
+      const v2 = activeVerb(group, adverb, participle2, actor).split(' ');
+      if (v1.length !== v2.length || v1.slice(0, -1).join(' ') !== v2.slice(0, -1).join(' ')) return null;
+      verb = `${verb} and ${v2[v2.length - 1]}`;
+    }
     const subj = asSubject(actor, atStart);
     const text = `${prefix}${subj} ${verb} ${object}${mid ? ` ${mid}` : ''}${tail}${punct.trimEnd() || '.'}`
       .replace(/\s{2,}/g, ' ');
@@ -196,11 +248,15 @@ export function passiveToActive(sentence, { weWriter = false, at = null, kind = 
     return opt;
   };
 
-  if (agent) return [finish(agent, 'Rewrite in active voice')];
+  if (agent) return [finish(agent, 'Rewrite in active voice')].filter(Boolean);
   const out = [];
   if (weWriter) out.push(finish('we', 'Rewrite with "we" as the actor'));
-  out.push(finish('someone', 'Template: replace "someone" with who did it', true));
-  return out;
+  if (placeholder === 'someone') out.push(finish('someone', 'Template: replace "someone" with who did it', true));
+  else {
+    const t = finish(placeholder, 'Active-voice template: type who did it', true);
+    if (t) out.push({ ...t, template: true });
+  }
+  return out.filter(Boolean);
 }
 
 // ---------- long sentences ----------

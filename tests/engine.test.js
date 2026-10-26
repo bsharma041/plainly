@@ -78,10 +78,19 @@ test('passive voice: flag, and rewrite only the plain shape', () => {
   assert.equal(applyFix('The report was written by the team.', s.fixes[0]), 'The team wrote the report.');
   assert.equal(fixOne('The cake was eaten by me.', 'passive'), 'I ate the cake.');
   const t2 = 'We made a plan. Payments were made late.';
-  const noAgent = find(t2, 'passive')[0];
+  // Round 3 (ruling P): a sentence starting "We" makes "we" the first option; the agentless template is a
+  // visible "[who]" placeholder, never first when "we" is offered, and selected for typing over.
+  const fixes = find(t2, 'passive')[0].fixes;
+  assert.equal(applyFix(t2, fixes[0]), 'We made a plan. We made payments late.');
+  const tpl = fixes.find((f) => f.template);
+  assert.equal(applyFix(t2, tpl), 'We made a plan. [who] made payments late.');
+  assert.deepEqual(tpl.select, [0, 5]);
+  // The old "Someone" template only exists behind the test option passiveTemplate.
+  const noAgent = find(t2, 'passive', { passiveTemplate: true })[0];
   assert.ok(noAgent);
-  assert.equal(applyFix(t2, noAgent.fixes[0]), 'We made a plan. Someone made payments late.');
-  assert.deepEqual(noAgent.fixes[0].select, [0, 7], 'placeholder actor gets selected for typing over');
+  const someone = noAgent.fixes.find((f) => f.select);
+  assert.equal(applyFix(t2, someone), 'We made a plan. Someone made payments late.');
+  assert.deepEqual(someone.select, [0, 7], 'placeholder actor gets selected for typing over');
   assert.equal(find('I was tired after work.', 'passive').length, 0);
   assert.equal(find('She is interested in maths.', 'passive').length, 0);
 });

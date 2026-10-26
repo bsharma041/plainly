@@ -7,10 +7,12 @@
 // It is also dropped if it adds AI-filler vocabulary, creates a new AI-sounding
 // phrase, adds an em dash, or grows the text by more than a few words.
 
-import { CONFUSIONS, WORDY, PLAIN_WORDS, VERY_PAIRS, AI_PHRASES, AI_VOCAB, IRREGULAR, STOPWORDS } from './data/lists.js';
+import { CONFUSIONS, WORDY, REDUNDANCY, PLAIN_WORDS, VERY_PAIRS, AI_PHRASES, AI_VOCAB, IRREGULAR, STOPWORDS } from './data/lists.js';
 import { THESAURUS } from './data/thesaurus.js';
 import { SPELLING } from './data/spelling.js';
 import { IRREGULAR_BASE } from './morph.js';
+import { USAGE_INSERTS, NOMINALISATIONS, NOMINALISATIONS_US } from './data/usage-lists.js';
+import { neitherPairsWithOr } from './neither.js';
 import { words } from './text.js';
 
 const lower = (s) => s.toLowerCase().replace(/[’]/g, "'");
@@ -19,7 +21,7 @@ const tokens = (s) => words(s).map((w) => lower(w.text));
 // Closed vocabulary: everything the rules are allowed to add.
 const CLOSED = new Set();
 const addAll = (s) => { for (const t of tokens(String(s || ''))) CLOSED.add(t); };
-for (const [from, to] of WORDY) { addAll(from); addAll(to); }
+for (const [from, to] of [...WORDY, ...REDUNDANCY]) { addAll(from); addAll(to); }
 for (const [, to] of AI_PHRASES) addAll(to); // only the plain replacements, never the AI phrases
 Object.values(PLAIN_WORDS).forEach(addAll);
 Object.values(VERY_PAIRS).forEach(addAll);
@@ -29,6 +31,10 @@ Object.entries(IRREGULAR_BASE).flat().forEach(addAll);
 for (const [w, v] of SPELLING) { addAll(w); addAll(v.other); }
 STOPWORDS.forEach((w) => CLOSED.add(w));
 for (const c of CONFUSIONS) addAll(c.title);
+// Round 1 usage rules: every word they can insert (data/usage-lists.js).
+addAll(USAGE_INSERTS);
+Object.values(NOMINALISATIONS).flat().forEach(addAll);
+Object.values(NOMINALISATIONS_US).flat().forEach(addAll);
 addAll(`I me we us he him she her they them it you someone whom who
   am is are was were be been being has have had do does did done not cannot
   will would shall should can could may might must
@@ -73,6 +79,10 @@ function isFormOf(w, own) {
     if (w === o) return true;
     if (IRREGULAR[o] === w || IRREGULAR_BASE[o] === w) return true; // written -> wrote / write
     // Inflection of a short word: cut -> cutting, ban -> banned
+    // Silent-e inflection: raise -> raising, use -> used.
+    // Only for content words of 4+ letters: "the" -> "thing" must not pass (round 3, F3).
+    if (o.length >= 4 && !STOPWORDS.has(o) && o.endsWith('e') && w.startsWith(o.slice(0, -1)) && /^(ing|ed|er|est)$/.test(w.slice(o.length - 1))) return true;
+    if (w.length >= 4 && !STOPWORDS.has(w) && w.endsWith('e') && o.startsWith(w.slice(0, -1)) && /^(ing|ed)$/.test(o.slice(w.length - 1))) return true; // storing -> store
     if (o.length >= 3 && w.startsWith(o) && INFLECTION.test(w.slice(o.length).replace(/^(.)\1?/, (m) => (m.length === 2 && m[0] === m[1] ? '' : m)))) return true;
     if (o.length >= 3 && o.startsWith(w) && o.length - w.length <= 3) return true; // approved -> approve
     // Same stem and nearly the same word: organise/organize, reviewed/reviews, travelled/traveled
@@ -90,29 +100,45 @@ const negations = (list) => list.filter((w) => NEGATION.test(w)).length;
 const AI_PHRASE_RE = new RegExp(`(?<![A-Za-z])(${AI_PHRASES.map(([p]) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "['’]")).join('|')})(?![A-Za-z])`, 'gi');
 const countAiPhrases = (s) => (s.match(AI_PHRASE_RE) || []).length;
 
+/** True only for replacing exactly "or" with "nor" when an earlier "neither" pairs with it in the same
+ *  clause, by the same test the R2b rule uses (neither.js): no clause break, at most 8 words, not a determiner. */
+export function isNeitherNorSwap(text, fix) {
+  if (text.slice(fix.start, fix.end).toLowerCase() !== 'or' || fix.text.toLowerCase() !== 'nor') return false;
+  const before = text.slice(0, fix.start);
+  const m = before.match(/\bneither\b(?![\s\S]*\bneither\b)/i);
+  if (!m) return false;
+  return neitherPairsWithOr(text, m.index + m[0].length, fix.start);
+}
+
 /**
  * @param {string} text full document text
  * @param {{start:number,end:number,text:string}} fix
  * @returns {{ ok: boolean, reason?: string }}
  */
-export function checkFix(text, fix, { remote = false } = {}) {
+export function checkFix(text, fix, { remote = false, maxGrowth = 4 } = {}) {
   const before = text.slice(fix.start, fix.end);
   const after = fix.text;
   const beforeTokens = tokens(before);
   const afterTokens = tokens(after);
-  const own = new Set(beforeTokens);
+  // Hyphenation joins or splits the writer's own words: "long term" <-> "long-term".
+  const own = new Set([...beforeTokens, ...beforeTokens.flatMap((t) => (t.includes('-') ? t.split('-') : []))]);
   const added = afterTokens.filter((w) => !own.has(w));
 
   // A fix may never flip meaning by adding a negation ("approved" -> "did not approve").
-  if (negations(afterTokens) > negations(beforeTokens)) return { ok: false, reason: 'adds a negation' };
+  // One named exception (round 3, Q2): "neither … or" -> "neither … nor" keeps the polarity "neither" already set.
+  if (negations(afterTokens) > negations(beforeTokens) && !isNeitherNorSwap(text, fix)) return { ok: false, reason: 'adds a negation' };
   // Outside (deep-check) fixes stay small and local: no rephrasing of whole clauses.
   if (remote && (beforeTokens.length > 4 || added.length > 2)) return { ok: false, reason: 'remote fix too large' };
 
   for (const w of added) {
     if (isAiWord(w)) return { ok: false, reason: `adds AI-filler word "${w}"` };
+    if (w.includes('-') && w.split('-').every((p) => own.has(p))) continue;
     if (!CLOSED.has(w) && !isFormOf(w, own)) return { ok: false, reason: `adds outside word "${w}"` };
   }
-  if (tokens(after).length > tokens(before).length + 4) return { ok: false, reason: 'adds too many words' };
+  // maxGrowth is raised only for a composed sentence preview (U1), whose parts each passed with the
+  // default limit; it never applies to deep-check fixes.
+  const growth = remote ? 4 : Math.max(4, maxGrowth);
+  if (tokens(after).length > tokens(before).length + growth) return { ok: false, reason: 'adds too many words' };
   if ((after.match(/—/g) || []).length > (before.match(/—/g) || []).length) return { ok: false, reason: 'adds an em dash' };
   // Look at the surrounding sentence so phrases spanning the edit are caught.
   const lo = Math.max(0, fix.start - 80);

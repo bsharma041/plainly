@@ -3,6 +3,7 @@
 // writer's sentence, re-inflected by these rules.
 
 import { IRREGULAR } from './data/lists.js';
+import { IRREGULAR_PLURAL, PLURAL_VERB } from './data/usage-lists.js';
 
 // Irregular past participle -> base form.
 export const IRREGULAR_BASE = {
@@ -107,4 +108,35 @@ export function isPluralSubject(phrase) {
   if (SINGULAR_S.has(head)) return false;
   if (/(people|children|men|women|staff|data|police|media|criteria|phenomena)$/.test(head)) return true;
   return /[^s]s$/.test(head) && !/(us|is|ss)$/.test(head);
+}
+
+// ---------- round 1: helpers for the usage rules ----------
+
+/** -ing form -> base form ("identifying" -> "identify", "reducing" -> "reduce", "planning" -> "plan"). */
+export function baseFromIng(word) {
+  const w = word.toLowerCase();
+  if (!w.endsWith('ing') || w.length < 5) return w === 'being' ? 'be' : w;
+  if (w === 'being') return 'be';
+  const stem = w.slice(0, -3);
+  if (/([bdgklmnprt])\1$/.test(stem)) {
+    const single = stem.slice(0, -1);
+    if (DOUBLE_ING.has(single) || /^[^aeiou]*[aeiou][bdgmnprt]$/.test(single)) return single;
+    return stem; // "assessing" -> "assess"
+  }
+  if (/y$/.test(stem) || stem.length < 2) return stem;
+  return needsE(stem) ? `${stem}e` : stem;
+}
+
+/** Singular noun -> plural ("approach" -> "approaches", "policy" -> "policies"). */
+export function pluralize(noun) {
+  const n = noun.toLowerCase();
+  if (IRREGULAR_PLURAL[n]) return IRREGULAR_PLURAL[n];
+  if (/(s|x|z|ch|sh)$/.test(n)) return `${n}es`;
+  if (/[^aeiou]y$/.test(n)) return `${n.slice(0, -1)}ies`;
+  return `${n}s`;
+}
+
+/** Singular verb -> plural verb for a compound subject ("is" -> "are", "remains" -> "remain"). */
+export function pluralVerb(verb) {
+  return PLURAL_VERB[verb.toLowerCase()] || null;
 }

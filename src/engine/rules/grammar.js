@@ -76,6 +76,8 @@ function agreement(text, out) {
     while ((m = a.re.exec(text))) {
       if (insideQuotes(text, m.index)) continue;
       if (/^(each|either|neither)$/i.test(m[1]) && /\bof\b/.test(text.slice(m.index + m[0].length, m.index + m[0].length + 4))) continue;
+      // "the cost and timing of each are", "the data for each are": after a preposition, "each" is its object, not the subject.
+      if (/^(each|either|neither)$/i.test(m[1]) && /^(of|for|to|from|in|on|by|with|among|between)$/.test(prevWord(text, m.index))) continue;
       // "They each have", "The teams each are": "each" follows a plural subject.
       if (/^(each|either|neither)$/i.test(m[1])) {
         const pw = prevWord(text, m.index);
@@ -206,4 +208,4 @@ export function grammarRules(text) {
   return out.filter((s) => s.fixes.every((f) => f.text !== undefined));
 }
 
-export { isSentenceStart as _isSentenceStart, prevWord as _prevWord };
+export { isSentenceStart as _isSentenceStart, prevWord as _prevWord, PAST_TO_BASE };

@@ -205,6 +205,8 @@ export const ADJECTIVE_PARTICIPLES = new Set([
   'convinced', 'impressed', 'motivated', 'organised', 'organized', 'balanced', 'skilled',
   'talented', 'educated', 'informed', 'inclined', 'known', 'done', 'gone', 'lost', 'finished',
   'closed', 'opened', 'crowded', 'packed', 'connected', 'attached', 'aware', 'faced', 'unrelated',
+  // round 2 (F1)
+  'misplaced', 'comprised', 'unprecedented', 'unmatched', 'unaffected', 'unexpected', 'unexplained', 'unknown', 'unresolved',
 ]);
 
 // Words ending in -ed that are not past participles.
@@ -233,3 +235,15 @@ export const IRREGULAR = {
 };
 
 export const STOPWORDS = new Set(('a an the and or but if then than so of to in on at by for with from as is are was were be been being it its this that these those i you he she we they me him her us them my your his our their not no do does did have has had will would can could should may might must there here what which who whom whose when where why how all any each some more most other such only own same too very just also into about over after before up down out off again further once both few nor per via').split(' '));
+
+// Redundant pairs (round 2, R16). Shown as "Redundancy" cards; same contract as WORDY.
+export const REDUNDANCY = [
+  ['future prospects', 'prospects'], ['current status quo', 'status quo'], ['mutual cooperation', 'cooperation'],
+  ['joint collaboration', 'collaboration'], ['final conclusion', 'conclusion'], ['brief summary', 'summary'],
+  ['past experience', 'experience'], ['exact same', 'same'], ['various different', 'various'], ['each individual', 'each'],
+  ['combine together', 'combine'], ['merge together', 'merge'], ['still continues', 'continues'], ['still remains', 'remains'],
+  ['basic essentials', 'essentials'], ['true facts', 'facts'], ['the reason why is because', 'the reason is that'],
+  ['reason is because', 'reason is that'], ['completely unanimous', 'unanimous'], ['advance warning', 'warning'],
+  ['general consensus', 'consensus'], ['consensus of opinion', 'consensus'], ['period of time', 'period'],
+  ['small in size', 'small'], ['large in size', 'large'],
+];

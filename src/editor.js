@@ -23,7 +23,7 @@ export function renderMirror(mirror, text, suggestions, { activeId, anchor } = {
   }
 
   const items = [
-    ...marks.map((m) => ({ start: m.start, end: m.end, html: (inner) => `<mark class="m m-${m.category}${m.id === activeId ? ' is-active' : ''}" data-id="${escapeHtml(m.id)}">${inner}</mark>` })),
+    ...marks.map((m) => ({ start: m.start, end: m.end, html: (inner) => `<mark class="m m-${m.category} sev-${escapeHtml(m.severity || 'advanced')}${m.id === activeId ? ' is-active' : ''}" data-id="${escapeHtml(m.id)}">${inner}</mark>` })),
     ...blocks.map((b) => ({ start: b.start, end: b.end, html: (inner) => b.kind === 'anchor'
       ? `<span class="m-anchor" data-anchor="1">${inner}</span>`
       : `<mark class="m-sentence m-${b.category}" data-id="${escapeHtml(b.id)}">${inner}</mark>` })),

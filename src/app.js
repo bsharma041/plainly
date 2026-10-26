@@ -1,6 +1,6 @@
 import {
   runChecks, mergeSuggestions, suggestionKey, guardSuggestion, remap, stats, overallScore, readabilityLabel,
-  detectDialect, detectTone, TONE_INFO, DEFAULT_OPTIONS,
+  detectDialect, detectTone, TONE_INFO, DEFAULT_OPTIONS, sentenceGroups, composeSentence, RULE_INFO, isBulkSafe,
 } from './engine/index.js';
 import { checkWithLanguageTool } from './services/languagetool.js';
 import { synonymsFor } from './services/synonyms.js';
@@ -77,13 +77,18 @@ const state = {
   suggestions: [],
   activeId: null,
   openCardId: null,
+  improve: null, // { start, sel: Map<suggestionId, boolean> } while "Improve this sentence" is open
   filter: 'all',
+  criticalOnly: false, // U3 "Critical only" chip
   dismissed: new Set(asStrings(store.get('dismissed', []))),
   dictionary: new Set(asStrings(store.get('dictionary', []))),
   settings: {
     dialect: ['auto', 'us', 'uk'].includes(savedSettings?.dialect) ? savedSettings.dialect : 'auto',
     deep: typeof savedSettings?.deep === 'boolean' ? savedSettings.deep : false,
     theme: ['auto', 'light', 'dark'].includes(savedSettings?.theme) ? savedSettings.theme : 'auto',
+    repetition: typeof savedSettings?.repetition === 'boolean' ? savedSettings.repetition : true,
+    serialComma: ['auto', 'always', 'never'].includes(savedSettings?.serialComma) ? savedSettings.serialComma : 'auto',
+    disabledRules: asStrings(savedSettings?.disabledRules),
     categories: { ...DEFAULT_OPTIONS.categories },
   },
   deepConsent: store.get('deepConsent', null),
@@ -146,6 +151,9 @@ function engineOptions() {
     dialect: state.settings.dialect,
     longSentence: AUDIENCE_LIMIT[g.audience] || 30,
     plainWords: g.audience !== 'expert',
+    repetition: state.settings.repetition,
+    serialComma: state.settings.serialComma,
+    domain: g.domain, // academic/technical: no repetition or plain-word cards, longer sentence limit
     goals: { formality: g.formality, confident: g.confident },
     categories: state.settings.categories,
   };
@@ -199,11 +207,13 @@ function scheduleRemote(delay = 1500) {
 }
 
 const categoryEnabled = (cat) => state.settings.categories[cat] !== false;
+const ruleEnabled = (rule) => !state.settings.disabledRules.includes(rule);
 
 function recompute() {
   const remote = state.remote.filter((s) => categoryEnabled(s.category)
     && !(s.spelling && state.dictionary.has(s.original.toLowerCase())));
   const merged = mergeSuggestions([state.local, remote])
+    .filter((s) => ruleEnabled(s.rule))
     .filter((s) => !state.dismissed.has(dismissKey(s)))
     .filter((s) => s.end <= state.text.length && state.text.slice(s.start, s.end) === s.original);
   state.suggestions = merged.map((s) => (s.source === 'languagetool' ? { ...s, id: `R:${s.start}:${s.end}:${s.rule}` } : s));
@@ -212,6 +222,7 @@ function recompute() {
     if (!state.synonymAnchor) hidePopover();
   }
   if (state.openCardId && !state.suggestions.some((s) => s.id === state.openCardId)) state.openCardId = null;
+  if (state.improve && !currentGroups().some((g) => g.start === state.improve.start)) state.improve = null;
   render();
 }
 
@@ -268,7 +279,7 @@ function fixButtons(s) {
     const before = state.text.slice(f.start, f.end);
     html += `<div class="rewrite"><div class="rw-label">${escapeHtml(f.label || 'Suggested rewrite')}</div>
       <div class="rw-text">${diffHtml(before, f.preview)}</div>
-      <button class="fix" data-act="fix" data-id="${id}" data-fix="${i}">Accept</button></div>`;
+      <button class="fix${f.template ? ' alt' : ''}" data-act="fix" data-id="${id}" data-fix="${i}">${f.template ? 'Use template' : 'Accept'}</button></div>`;
   }
   if (plain.length) {
     html += `<div class="fixes">${plain.map((f) => {
@@ -283,17 +294,101 @@ function fixButtons(s) {
 function actionButtons(s) {
   const id = escapeHtml(s.id);
   const dict = s.spelling ? `<button class="link" data-act="dict" data-id="${id}">Add to dictionary</button>` : '';
-  return `<div class="card-actions"><button class="link" data-act="dismiss" data-id="${id}">Dismiss</button>${dict}</div>`;
+  const mute = s.source === 'languagetool' ? '' : `<button class="link" data-act="mute" data-id="${id}">Turn off this check</button>`;
+  return `<div class="card-actions"><button class="link" data-act="dismiss" data-id="${id}">Dismiss</button>${dict}${mute}</div>`;
 }
 
-// Only rules whose single fix is near-certain go into "Accept all". Heuristic ones
-// (a/an, agreement, comma splices, intro commas, comparatives) need a look first.
-const BULK_SAFE = new Set(['lowercase-i', 'repeated-word', 'sentence-case', 'space-before-punct', 'space-after-comma', 'double-punct', 'apostrophe', 'capitalize', 'confusion', 'dialect', 'verb-form', 'double-space']);
+// Card body (U2): what is wrong, why (rule name + fixed example), the fixes, then actions.
+function whyHtml(s) {
+  const info = RULE_INFO[s.rule];
+  if (!info) return '';
+  const ex = info.example;
+  return `<details class="why"><summary>Why?</summary><p><b>${escapeHtml(info.name)}.</b> ${escapeHtml(info.explanation)}</p>
+    ${ex ? `<p class="why-ex"><span class="ex-wrong">✗ ${escapeHtml(ex.wrong)}</span> <span class="arrow">→</span> <span class="ex-right">✓ ${escapeHtml(ex.right)}</span></p>` : ''}</details>`;
+}
+
+function suggestionBody(s) {
+  const tip = s.fixes.length ? '' : '<p class="tip-tag">Tip, no automatic fix</p>';
+  return `<p class="card-msg">${escapeHtml(s.message)}</p>${whyHtml(s)}${tip}${fixButtons(s)}${actionButtons(s)}`;
+}
+
+// ---------- "Improve this sentence" (U1): built only from this sentence's rule fixes ----------
+const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
+const changeNo = (i) => CIRCLED[i] || `(${i + 1})`;
+let groupsCache = { text: null, list: null, groups: [] };
+function currentGroups() {
+  if (groupsCache.text !== state.text || groupsCache.list !== state.suggestions) {
+    groupsCache = { text: state.text, list: state.suggestions, groups: sentenceGroups(state.text, state.suggestions) };
+  }
+  return groupsCache.groups;
+}
+const improveOn = (item) => {
+  const sel = state.improve?.sel;
+  if (sel && sel.has(item.suggestion.id)) return sel.get(item.suggestion.id);
+  return (item.suggestion.severity || 'advanced') !== 'style';
+};
+
+function improveHtml() {
+  if (!state.improve) return '';
+  const g = currentGroups().find((x) => x.start === state.improve.start);
+  if (!g) return '';
+  const c = composeSentence(state.text, g, improveOn);
+  const rows = g.items.map((it, i) => {
+    const s = it.suggestion;
+    const before = state.text.slice(it.fix.start, it.fix.end);
+    const to = it.fix.text.trim() === '' ? '<em>remove</em>' : `<strong>${escapeHtml(truncate(it.fix.text, 40))}</strong>`;
+    return `<li><label class="check"><input type="checkbox" data-act="improve-toggle" data-id="${escapeHtml(s.id)}"${improveOn(it) ? ' checked' : ''}>
+      <span class="chg-no">${changeNo(i)}</span><span class="chg"><s>${escapeHtml(truncate(before, 40))}</s><span class="arrow">→</span>${to}</span>
+      <span class="chg-rule">${escapeHtml(s.ruleName || s.title)}</span></label>
+      <button type="button" class="link" data-act="open" data-id="${escapeHtml(s.id)}">Open change ${changeNo(i)}</button></li>`;
+  }).join('');
+  const tips = g.tips.length ? `<div class="improve-tips"><span>Also in this sentence, not applied:</span><ul>${g.tips.map((s) => `<li>${escapeHtml(s.ruleName || s.title)}: ${escapeHtml(truncate(s.original, 40))}</li>`).join('')}</ul></div>` : '';
+  const body = !c.count
+    ? '<p class="card-msg">Tick at least one change to see the sentence.</p>'
+    : c.ok
+      ? `<div class="rw-text">${diffHtml(g.text, c.preview)}</div><button type="button" class="fix" data-act="improve-accept">Accept sentence</button>`
+      : '<p class="card-msg">These changes together can\'t be checked safely. Use the individual cards instead.</p>';
+  return `<section class="improve" aria-label="Improve this sentence">
+    <div class="improve-head"><strong>Improve this sentence</strong><span class="rule-tag" title="Every change comes from a named grammar rule applied to your words. Plainly never writes new sentences.">Rule-based ⓘ</span>
+      <button type="button" class="link" data-act="improve-close">Close</button></div>
+    <p class="improve-label">${escapeHtml(c.label)}</p>
+    ${body}
+    <ol class="improve-list">${rows}</ol>
+    ${tips}
+  </section>`;
+}
+
+function openImprove(start) {
+  state.improve = { start, sel: new Map() };
+  renderCards();
+  els.cards.querySelector('.improve')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function acceptImprove() {
+  const g = currentGroups().find((x) => x.start === state.improve?.start);
+  if (!g || state.text.slice(g.start, g.end) !== g.text) return;
+  const c = composeSentence(state.text, g, improveOn);
+  if (!c.ok || !c.count) return;
+  hidePopover();
+  state.improve = null;
+  state.activeId = null;
+  state.openCardId = null;
+  replaceRange(c.edit.start, c.edit.end, c.edit.text); // one insertText: one undo step
+  toast(`Applied ${c.count} rule fixes. Ctrl/Cmd+Z undoes them all.`);
+}
+
+function muteRule(id) {
+  const s = state.suggestions.find((x) => x.id === id);
+  if (!s) return;
+  if (!state.settings.disabledRules.includes(s.rule)) state.settings.disabledRules = [...state.settings.disabledRules, s.rule];
+  saveSettings();
+  hidePopover();
+  recompute();
+  toast(`Turned off "${s.ruleName || s.title}". Turn it back on in Settings.`);
+}
+
 function bulkFixes() {
-  return state.suggestions.filter((s) => s.category === 'correctness' && s.scope === 'word' && s.fixes.length && !s.fixes[0].preview
-    // Deep-check matches join only when they're plain spelling fixes with one candidate.
-    && s.fixes.length === 1 // more than one option means a choice for the writer
-    && (BULK_SAFE.has(s.rule) || (s.source === 'languagetool' && s.spelling)));
+  return state.suggestions.filter(isBulkSafe);
 }
 
 function renderCards() {
@@ -308,28 +403,39 @@ function renderCards() {
   els.bulk.hidden = bulk.length < 2 || !['all', 'correctness'].includes(state.filter);
   els.fixAll.textContent = `Accept all ${bulk.length} correctness fixes`;
 
-  const list = state.suggestions.filter((s) => state.filter === 'all' || s.category === state.filter);
-  if (!list.length) {
+  const list = state.suggestions.filter((s) => (state.filter === 'all' || s.category === state.filter)
+    && (!state.criticalOnly || s.severity === 'critical'));
+  const crit = $('btn-critical');
+  if (crit) { crit.classList.toggle('is-on', state.criticalOnly); crit.setAttribute('aria-pressed', String(state.criticalOnly)); }
+  // The "{n} fixes in this sentence" chip goes on the first card of each sentence that has a preview.
+  const chipFor = new Map();
+  for (const g of currentGroups()) {
+    const first = list.find((s) => s.start >= g.start && s.end <= g.end);
+    if (first) chipFor.set(first.id, g);
+  }
+  const panel = improveHtml();
+  if (!list.length && !panel) {
     const empty = !state.text.trim();
     els.cards.innerHTML = `<div class="empty"><div class="empty-mark">${empty ? '✎' : '✓'}</div>
       <h3>${empty ? 'Start writing' : state.filter === 'all' ? 'Nothing to fix' : `No ${CATEGORY_LABEL[state.filter].toLowerCase()} suggestions`}</h3>
       <p>${empty ? 'Type or paste text on the left. Suggestions show up here.' : 'Your text reads clean on these checks.'}</p></div>`;
     return;
   }
-  els.cards.innerHTML = list.map((s) => {
+  els.cards.innerHTML = panel + list.map((s) => {
     const open = s.id === state.openCardId;
     const id = escapeHtml(s.id);
-    return `<article class="card c-${s.category}${open ? ' is-open' : ''}" data-id="${id}" style="--c: var(--${s.category})">
+    const g = chipFor.get(s.id);
+    const chip = g ? `<button type="button" class="chip-improve" data-act="improve" data-start="${g.start}">${g.items.length} fixes in this sentence</button>` : '';
+    return `<article class="card c-${s.category} sev-${escapeHtml(s.severity || 'advanced')}${open ? ' is-open' : ''}" data-id="${id}" style="--c: var(--${s.category})">
       <button class="card-head" data-act="open" data-id="${id}" aria-expanded="${open}">
         <i class="dot"></i>
         <span class="card-line">${fixPreview(s)}</span>
-        <span class="card-kind">${escapeHtml(s.title)}</span>
+        <span class="card-kind">${escapeHtml(s.ruleName || s.title)}</span>
       </button>
+      ${chip}
       ${open ? `<div class="card-body">
         <p class="card-title">${escapeHtml(s.title)}</p>
-        <p class="card-msg">${escapeHtml(s.message)}</p>
-        ${fixButtons(s)}
-        ${actionButtons(s)}
+        ${suggestionBody(s)}
       </div>` : ''}
     </article>`;
   }).join('');
@@ -341,7 +447,9 @@ function renderScore() {
   els.ring.style.strokeDashoffset = score == null ? RING_LEN : RING_LEN * (1 - score / 100);
   els.ring.style.stroke = score == null ? '' : score >= 85 ? 'var(--engagement)' : score >= 65 ? 'var(--clarity)' : 'var(--correctness)';
   const n = state.suggestions.length;
-  els.scoreMeta.textContent = state.text.trim() ? `${n} suggestion${n === 1 ? '' : 's'}` : '';
+  const sev = { critical: 0, advanced: 0, style: 0 };
+  for (const s of state.suggestions) sev[s.severity || 'advanced'] = (sev[s.severity || 'advanced'] || 0) + 1;
+  els.scoreMeta.textContent = state.text.trim() ? `${n} suggestion${n === 1 ? '' : 's'} · ${sev.critical} critical · ${sev.advanced} advanced · ${sev.style} style` : '';
 }
 
 function renderTone() {
@@ -389,9 +497,9 @@ function showSuggestionPopover(s) {
   els.popover.className = `popover c-${s.category}`;
   els.popover.style.setProperty('--c', `var(--${s.category})`);
   els.popover.innerHTML = `<div class="pop-head"><i class="dot" style="--c: var(--${s.category})"></i>${CATEGORY_LABEL[s.category]}</div>
-    <p class="pop-title">${escapeHtml(s.title)}</p>
-    <p class="pop-msg">${escapeHtml(s.message)}</p>
-    ${fixButtons(s)}${actionButtons(s)}`;
+    <p class="pop-title">${escapeHtml(s.ruleName || s.title)}</p>
+    ${s.ruleName && s.ruleName !== s.title ? `<p class="pop-msg">${escapeHtml(s.title)}</p>` : ''}
+    ${suggestionBody(s)}`;
   placePopover(els.popover, mark, els.docInner);
 }
 
@@ -447,9 +555,9 @@ function applySuggestionFix(id, index) {
   state.openCardId = null;
   replaceRange(fix.start, fix.end, fix.text);
   if (fix.select) {
-    // Placeholder actor ("someone"): select it so the writer can type the real name.
+    // Placeholder actor ("[who]"): select it so the writer can type the real name.
     els.input.setSelectionRange(fix.start + fix.select[0], fix.start + fix.select[1]);
-    toast('Type who did it to replace "someone"');
+    toast('Type who did it over the selected placeholder');
   }
 }
 
@@ -731,6 +839,14 @@ function handleAction(e) {
   if (act === 'fix') applySuggestionFix(id, Number(btn.dataset.fix));
   else if (act === 'dismiss') dismiss(id);
   else if (act === 'dict') addToDictionary(id);
+  else if (act === 'mute') muteRule(id);
+  else if (act === 'improve') openImprove(Number(btn.dataset.start));
+  else if (act === 'improve-close') { state.improve = null; renderCards(); }
+  else if (act === 'improve-accept') acceptImprove();
+  else if (act === 'improve-toggle') {
+    if (state.improve) state.improve.sel.set(id, btn.checked);
+    renderCards();
+  }
   else if (act === 'syn') {
     const words = JSON.parse(els.popover.dataset.words || '[]');
     const anchor = state.synonymAnchor;
@@ -758,6 +874,7 @@ els.tabs.addEventListener('click', (e) => {
   renderCards();
 });
 els.fixAll.addEventListener('click', fixAll);
+$('btn-critical').addEventListener('click', () => { state.criticalOnly = !state.criticalOnly; renderCards(); });
 
 // Home
 els.search.addEventListener('input', renderHome);
@@ -862,6 +979,12 @@ function syncSettingsForm() {
   setDialect.value = state.settings.dialect;
   setTheme.value = state.settings.theme;
   for (const cb of els.settings.querySelectorAll('[data-cat-toggle]')) cb.checked = categoryEnabled(cb.dataset.catToggle);
+  $('set-repetition').checked = state.settings.repetition;
+  $('set-serial').value = state.settings.serialComma;
+  const muted = state.settings.disabledRules;
+  $('muted').innerHTML = muted.length
+    ? muted.map((r) => `<span class="chip">${escapeHtml(RULE_INFO[r]?.name || r)}<button type="button" data-rule="${escapeHtml(r)}" aria-label="Turn ${escapeHtml(RULE_INFO[r]?.name || r)} back on">×</button></span>`).join('')
+    : '<span class="dict-empty">Checks you turn off from a card show up here.</span>';
   $('dict').innerHTML = state.dictionary.size
     ? [...state.dictionary].sort().map((w) => `<span class="chip">${escapeHtml(w)}<button type="button" data-word="${escapeHtml(w)}" aria-label="Remove ${escapeHtml(w)}">×</button></span>`).join('')
     : '<span class="dict-empty">Words you add from spelling suggestions show up here.</span>';
@@ -870,6 +993,18 @@ for (const b of document.querySelectorAll('[data-open-settings]')) b.addEventLis
 setDialect.addEventListener('change', () => { state.settings.dialect = setDialect.value; saveSettings(); if (state.docId) { runLocal(); scheduleRemote(100); } });
 setTheme.addEventListener('change', () => { state.settings.theme = setTheme.value; saveSettings(); applyTheme(); });
 els.settings.addEventListener('change', (e) => {
+  if (e.target.id === 'set-serial') {
+    state.settings.serialComma = e.target.value;
+    saveSettings();
+    if (state.docId) runLocal();
+    return;
+  }
+  if (e.target.id === 'set-repetition') {
+    state.settings.repetition = e.target.checked;
+    saveSettings();
+    if (state.docId) runLocal();
+    return;
+  }
   const cat = e.target.dataset?.catToggle;
   if (!cat) return;
   state.settings.categories = { ...state.settings.categories, [cat]: e.target.checked };
@@ -881,6 +1016,14 @@ $('dict').addEventListener('click', (e) => {
   if (!w) return;
   state.dictionary.delete(w);
   store.set('dictionary', [...state.dictionary]);
+  syncSettingsForm();
+  if (state.docId) recompute();
+});
+$('muted').addEventListener('click', (e) => {
+  const r = e.target.dataset?.rule;
+  if (!r) return;
+  state.settings.disabledRules = state.settings.disabledRules.filter((x) => x !== r);
+  saveSettings();
   syncSettingsForm();
   if (state.docId) recompute();
 });

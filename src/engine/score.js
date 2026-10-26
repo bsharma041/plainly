@@ -1,6 +1,14 @@
 import { words, splitSentences, syllables } from './text.js';
 
-const WEIGHT = { correctness: 3, clarity: 1.2, voice: 1, engagement: 0.5 };
+import { severityOf } from './severity.js';
+
+// U3: weight by severity. A style tip with no fix costs nothing.
+const WEIGHT = { critical: 3, advanced: 1.2, style: 0.3 };
+const weight = (s) => {
+  const sev = severityOf(s);
+  if (sev === 'style' && !(s.fixes && s.fixes.length)) return 0;
+  return WEIGHT[sev] ?? 1;
+};
 
 export function stats(text) {
   const ws = words(text);
@@ -41,6 +49,6 @@ export function readabilityLabel(score) {
 export function overallScore(text, suggestions) {
   const wc = words(text).length;
   if (!wc) return null;
-  const penalty = suggestions.reduce((n, s) => n + (WEIGHT[s.category] || 1), 0);
+  const penalty = suggestions.reduce((n, s) => n + weight(s), 0);
   return Math.max(0, Math.min(100, Math.round(100 - (penalty / Math.max(wc, 40)) * 150)));
 }

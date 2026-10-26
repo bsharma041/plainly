@@ -109,6 +109,8 @@
           <button role="tab" data-cat="voice"><i class="dot c-voice"></i>Delivery <b data-count="voice">0</b></button>
         </nav>
 
+        <div class="sev-bar"><button type="button" class="sev-chip" id="btn-critical" aria-pressed="false" title="Show only critical issues (grammar errors)">Critical only</button></div>
+
         <div class="bulk" id="bulk" hidden>
           <button class="btn" id="btn-fix-all"></button>
         </div>
@@ -202,6 +204,18 @@
         <label class="check"><input type="checkbox" data-cat-toggle="engagement"> Engagement (weak words, repetition)</label>
         <label class="check"><input type="checkbox" data-cat-toggle="voice"> Delivery (AI-sounding phrases, goal-based tone checks)</label>
       </fieldset>
+      <fieldset class="field">
+        <legend>Individual checks</legend>
+        <label class="check"><input type="checkbox" id="set-repetition"> Repetition check (off anyway for academic and technical documents)</label>
+        <label class="field-inline"><span>Serial comma</span>
+          <select id="set-serial">
+            <option value="auto">Auto (follow what I use most)</option>
+            <option value="always">Always (red, white, and blue)</option>
+            <option value="never">Never (red, white and blue)</option>
+          </select></label>
+        <span class="field-sub">Turned-off checks</span>
+        <div class="dict" id="muted"></div>
+      </fieldset>
       <div class="field">
         <span>Personal dictionary</span>
         <div class="dict" id="dict"></div>
@@ -217,6 +231,19 @@
   <input type="file" id="file" accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
   <div class="toast" id="toast" role="status" hidden></div>
 
+  <script>
+    // If a deploy lands mid-visit, the browser can mix cached old files with new ones and a
+    // module fails to load. Show a clear message instead of a blank page.
+    window.addEventListener('error', function (e) {
+      if (!(e && e.message && /module|export|import/i.test(e.message)) || document.getElementById('reload-note')) return;
+      var n = document.createElement('div');
+      n.id = 'reload-note';
+      n.setAttribute('role', 'alert');
+      n.style.cssText = 'position:fixed;inset:auto 16px 16px 16px;max-width:520px;margin:auto;padding:14px 16px;border-radius:10px;background:#1d2228;color:#fff;font:14px/1.45 system-ui,sans-serif;z-index:99';
+      n.textContent = 'Plainly was just updated. Please reload the page (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) to load the new version.';
+      document.body.appendChild(n);
+    });
+  </script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>
