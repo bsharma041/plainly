@@ -269,6 +269,6 @@ test('F9: runChecks + runGuidance on 2,000 words, p95 under 60 ms', () => {
     times.push(performance.now() - t0);
   }
   times.sort((a, b) => a - b);
-    const budget = process.env.CI ? 150 : 60;
+  const budget = process.env.CI ? 150 : 60;
   assert.ok(times[18] < budget, `p95 ${times[18].toFixed(1)} ms (budget ${budget} ms)`);
 });
