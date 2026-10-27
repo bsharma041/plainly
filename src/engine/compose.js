@@ -66,3 +66,21 @@ export function composeSentence(text, group, isOn = defaultOn) {
     label: `Built from ${chosen.length} rule fix${chosen.length === 1 ? '' : 'es'} in this sentence. No new wording.`,
   };
 }
+
+/**
+ * "Make consistent" (round 6, G1): apply several independent fixes as one edit (one undo step).
+ * Each fix must pass the guard on its own; the composed range is re-checked with maxGrowth = the sum of the parts.
+ */
+export function composeFixes(text, fixes, { docVariant = false } = {}) {
+  const sorted = [...fixes].sort((a, b) => a.start - b.start);
+  for (let i = 1; i < sorted.length; i++) if (sorted[i].start < sorted[i - 1].end) return { ok: false, count: 0 };
+  if (!sorted.length) return { ok: false, count: 0 };
+  const each = sorted.every((f) => checkFix(text, f, { docVariant }).ok);
+  const lo = sorted[0].start;
+  const hi = sorted[sorted.length - 1].end;
+  const rangeText = applyFixes(text.slice(lo, hi), sorted.map((f) => ({ text: f.text, start: f.start - lo, end: f.end - lo })));
+  const growth = sorted.reduce((n, f) => n + Math.max(0, tokenCount(f.text) - tokenCount(text.slice(f.start, f.end))), 0);
+  const edit = { start: lo, end: hi, text: rangeText };
+  const ok = each && checkFix(text, edit, { maxGrowth: growth, docVariant }).ok;
+  return { ok, edit, count: sorted.length };
+}

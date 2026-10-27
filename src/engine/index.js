@@ -6,6 +6,9 @@ import { grammarRules } from './rules/grammar.js';
 import { deliveryRules } from './rules/delivery.js';
 import { usageRules } from './rules/usage.js';
 import { usageRules2 } from './rules/usage2.js';
+import { analyseDocument } from './rules/document.js';
+import { usageRules3 } from './rules/usage3.js';
+import { sectionModel } from './sections.js';
 import { guardSuggestion } from './guard.js';
 import { RULE_INFO } from './data/rule-info.js';
 import { severityOf, SEVERITY_RANK } from './severity.js';
@@ -18,9 +21,10 @@ export { detectDialect };
 export { remap } from './remap.js';
 export { stats, overallScore, readabilityLabel } from './score.js';
 export { detectTone, TONE_INFO } from './tone.js';
-export { sentenceGroups, composeSentence, applyFixes } from './compose.js';
+export { sentenceGroups, composeSentence, applyFixes, composeFixes } from './compose.js';
 export { RULE_INFO, ruleInfo } from './data/rule-info.js';
 export { isBulkSafe, BULK_SAFE } from './bulk.js';
+export { runGuidance, GUIDANCE_GROUPS } from './guidance.js';
 
 const PRIORITY = { correctness: 0, clarity: 1, voice: 2, engagement: 3 };
 export const DEFAULT_OPTIONS = {
@@ -80,11 +84,17 @@ export function runChecks(text, options = {}) {
   const lists = [];
   if (opts.categories.correctness) lists.push(correctnessRules(text, opts), grammarRules(text, opts));
   if (opts.categories.clarity) lists.push(clarityRules(text, opts));
-  if (opts.categories.correctness || opts.categories.clarity) lists.push(usageRules(text, opts), usageRules2(text, opts));
+  if (opts.categories.correctness || opts.categories.clarity) lists.push(usageRules(text, opts), usageRules2(text, opts), usageRules3(text, opts));
+  // Round 6: mechanical document findings (consistency, numbers, redefined acronyms, missing full stops) and claim advice as inline cards.
+  lists.push(analyseDocument(text, opts).inline.filter((s) => opts.categories[s.category] !== false));
   if (opts.categories.engagement) lists.push(engagementRules(text, opts));
   if (opts.categories.voice) lists.push(voiceRules(text, opts), deliveryRules(text, opts.goals || {}));
+  // Round 7 (M4): style rules don't judge the title, headings or the Keywords line.
+  const model = sectionModel(text);
+  const quiet = new Set(['plain-word', 'repetition', 'wordy', 'passive']);
+  const filtered = lists.map((l) => l.filter((s) => !(quiet.has(s.rule) && ['title', 'heading', 'keywords'].includes(model.kindAt(s.start)))));
   // Every fix passes the no-AI-text guard before it can be shown.
-  const merged = mergeSuggestions(lists.map((l) => l.map((s) => guardSuggestion(text, { ...s, source: 'local' }))));
+  const merged = mergeSuggestions(filtered.map((l) => l.map((s) => guardSuggestion(text, { ...s, source: 'local' }))));
   const out = merged.map((s) => ({
     ...s,
     severity: severityOf(s),

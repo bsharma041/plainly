@@ -1,0 +1,19 @@
+Rooftop solar adoption among Goan households: evidence from a survey
+
+Abstract
+
+We study rooftop solar adoption using a survey of 1,204 households in North Goa and South Goa. Adoption is higher among households with a member working abroad. We discuss implications for subsidy design.
+
+Keywords: rooftop solar, adoption, remittances, Goa
+
+1. Introduction
+
+Rooftop solar has spread slowly in Goa despite generous subsidies. Previous work on India has focused on large states (Shrimali and Jindal, 2019; Kumar, 2021). We add evidence from a small coastal state, where remittances from the Gulf are an important source of household income.
+
+2. Data
+
+The survey was carried out between June and September 2023 by trained enumerators. It covered 1,204 households in 48 villages and 6 towns. The response rate was 81 per cent. We use a logit model with village fixed effects; standard errors are clustered by village.
+
+3. Results
+
+Households with a member abroad are 9 percentage points more likely to have installed rooftop solar (95% CI: 4 to 14). The effect is larger in South Goa. Roof ownership matters more than income: tenants almost never adopt.

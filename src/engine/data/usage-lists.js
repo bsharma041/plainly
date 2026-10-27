@@ -19,7 +19,7 @@ export const ADJ_LIST = set(`new old large small short long high low public priv
   accurate adequate appropriate separate moderate secure stable mature robust quick strong weak broad narrow
   deep shallow wide rich poor costly timely friendly likely`);
 export const NOUN_SUFFIX = /(tion|sion|ment|ance|ence|ity|ness|ship|ure|ysis|sis|ogy|ing|ism|age|ery|cy|th)$/;
-export const NOUN_LIST = set('design use cost growth demand supply research policy law plan work change control access risk value price power energy data trade knowledge');
+export const NOUN_LIST = set('design use cost growth demand supply research policy law plan work change control access risk value price power energy data trade knowledge size age shape type number quality');
 
 // Nouns ending in "s" that are singular.
 export const SINGULAR_S = set(`news series species analysis basis crisis status physics economics mathematics politics thesis
@@ -44,6 +44,8 @@ export const PLURAL_VERB = {
   // round 2 (F11)
   takes: 'take', makes: 'make', reflects: 'reflect', determines: 'determine', affects: 'affect', shows: 'show',
   varies: 'vary', includes: 'include', provides: 'provide', creates: 'create', means: 'mean',
+  // round 6 (B1)
+  deters: 'deter', delays: 'delay', raises: 'raise', limits: 'limit', drives: 'drive',
 };
 
 // Irregular plurals for pluralize() in morph.js.
@@ -196,7 +198,8 @@ export const USAGE_INSERTS = `are were have do aim aims aimed to suited able how
   the a an most several some about can could analyze analyzing
   people children analyses bases crises hypotheses criteria phenomena
   remain seem appear require depend pose involve need face present
-  take make reflect determine affect show vary include provide create mean`;
+  take make reflect determine affect show vary include provide create mean
+  deter delay raise limit drive its`;
 
 // ---------- round 2: P1 rules (rules/usage2.js) ----------
 

@@ -1,6 +1,7 @@
 import {
   runChecks, mergeSuggestions, suggestionKey, guardSuggestion, remap, stats, overallScore, readabilityLabel,
   detectDialect, detectTone, TONE_INFO, DEFAULT_OPTIONS, sentenceGroups, composeSentence, RULE_INFO, isBulkSafe,
+  runGuidance, composeFixes, GUIDANCE_GROUPS,
 } from './engine/index.js';
 import { checkWithLanguageTool } from './services/languagetool.js';
 import { synonymsFor } from './services/synonyms.js';
@@ -78,6 +79,8 @@ const state = {
   activeId: null,
   openCardId: null,
   improve: null, // { start, sel: Map<suggestionId, boolean> } while "Improve this sentence" is open
+  guidance: [], // round 6: document-level findings (runGuidance)
+  openGuideId: null, // the guidance finding whose instances are highlighted
   filter: 'all',
   criticalOnly: false, // U3 "Critical only" chip
   dismissed: new Set(asStrings(store.get('dismissed', []))),
@@ -160,7 +163,9 @@ function engineOptions() {
 }
 
 function runLocal() {
-  state.local = runChecks(state.text, engineOptions());
+  const opts = engineOptions();
+  state.local = runChecks(state.text, opts);
+  state.guidance = runGuidance(state.text, { ...opts, dictionary: [...state.dictionary], disabledRules: state.settings.disabledRules });
   recompute();
   renderTone();
 }
@@ -228,7 +233,7 @@ function recompute() {
 
 // ---------- rendering ----------
 function render() {
-  renderMirror(els.mirror, state.text, state.suggestions, { activeId: state.activeId, anchor: state.synonymAnchor });
+  renderMirror(els.mirror, state.text, state.suggestions, { activeId: state.activeId, anchor: state.synonymAnchor, highlights: guideHighlights() });
   renderCards();
   renderScore();
   renderStats();
@@ -377,6 +382,98 @@ function acceptImprove() {
   toast(`Applied ${c.count} rule fixes. Ctrl/Cmd+Z undoes them all.`);
 }
 
+
+// ---------- Guidance panel (round 6, G1) ----------
+const GROUP_LABEL = { consistency: 'Consistency', acronyms: 'Acronyms', numbers: 'Numbers', evidence: 'Evidence', structure: 'Structure', tense: 'Tense', keywords: 'Keywords' };
+const guideKey = (g) => `G|${g.rule}|${g.title}`;
+// Drop findings whose spans no longer match the text (typing since the last run) or that were dismissed.
+function visibleGuidance() {
+  return state.guidance.filter((g) => !state.dismissed.has(guideKey(g)) && ruleEnabled(g.rule)
+    && g.instances.every((i) => i.end <= state.text.length && state.text.slice(i.start, i.end) === i.original));
+}
+function guideHighlights() {
+  const g = visibleGuidance().find((x) => x.id === state.openGuideId);
+  return g ? g.instances.map((i) => ({ start: i.start, end: i.end })) : [];
+}
+function contextHtml(i) {
+  const before = state.text.slice(Math.max(0, i.start - 30), i.start).replace(/\s+/g, ' ');
+  const after = state.text.slice(i.end, i.end + 30).replace(/\s+/g, ' ');
+  return `${i.start > 30 ? '…' : ''}${escapeHtml(before)}<b>${escapeHtml(i.original.replace(/\s+/g, ' '))}</b>${escapeHtml(after)}${i.end + 30 < state.text.length ? '…' : ''}`;
+}
+function renderGuidance() {
+  const list = visibleGuidance();
+  if (!list.length) {
+    els.cards.innerHTML = `<div class="empty"><div class="empty-mark">✓</div><h3>No document-level issues found</h3>
+      <p>Consistency, acronyms, numbers, claims, paragraph structure, tense and keywords were checked.</p></div>`;
+    return;
+  }
+  let html = '';
+  for (const group of GUIDANCE_GROUPS) {
+    const items = list.filter((g) => g.group === group);
+    if (!items.length) continue;
+    html += `<h3 class="guide-group">${escapeHtml(GROUP_LABEL[group] || group)}</h3>`;
+    for (const g of items) {
+      const open = g.id === state.openGuideId;
+      const gid = escapeHtml(g.id);
+      const fixable = g.instances.filter((i) => i.fixes.length).length;
+      const consistent = fixable && (g.group === 'consistency' || g.group === 'numbers')
+        ? `<button type="button" class="fix" data-act="gconsistent" data-g="${gid}">Make consistent (${fixable})</button>` : '';
+      const rows = g.instances.map((i, k) => `<li><button type="button" class="guide-inst${i.fixes.length ? ' has-fix' : ''}" data-act="gjump" data-g="${gid}" data-i="${k}">${contextHtml(i)}${i.fixes.length ? `<span class="guide-to">→ ${escapeHtml(i.fixes[0].text.trim() || 'remove')}</span>` : ''}</button></li>`).join('');
+      html += `<article class="card guide-card${open ? ' is-open' : ''}" style="--c: var(--brand)">
+        <button class="card-head" data-act="gopen" data-g="${gid}" aria-expanded="${open}">
+          <i class="dot"></i><span class="card-line"><strong>${escapeHtml(g.title)}</strong></span>
+          <span class="card-kind">${escapeHtml(g.ruleName || g.rule)}</span>
+        </button>
+        ${open ? `<div class="card-body">
+          <p class="card-msg">${escapeHtml(g.message)}</p>
+          ${whyHtml(g)}
+          ${fixable ? '' : '<p class="tip-tag">Advice, no automatic fix</p>'}
+          <ol class="guide-list">${rows}</ol>
+          ${consistent ? `<div class="fixes">${consistent}</div>` : ''}
+          <div class="card-actions"><button class="link" data-act="gdismiss" data-g="${gid}">Dismiss</button><button class="link" data-act="gmute" data-g="${gid}">Turn off this check</button></div>
+        </div>` : ''}
+      </article>`;
+    }
+  }
+  els.cards.innerHTML = html;
+}
+function jumpToInstance(gid, k) {
+  const g = visibleGuidance().find((x) => x.id === gid);
+  const i = g?.instances[k];
+  if (!i) return;
+  state.openGuideId = gid;
+  render();
+  els.input.focus({ preventScroll: true });
+  els.input.setSelectionRange(i.start, i.end);
+  const mark = els.mirror.querySelector(`[data-guide="${i.start}"]`);
+  mark?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+function makeConsistent(gid) {
+  const g = visibleGuidance().find((x) => x.id === gid);
+  if (!g) return;
+  const fixes = g.instances.flatMap((i) => i.fixes.slice(0, 1));
+  const c = composeFixes(state.text, fixes, { docVariant: true });
+  if (!c.ok) { toast('These changes can\'t be applied together safely. Use the individual cards.'); return; }
+  state.openGuideId = null;
+  replaceRange(c.edit.start, c.edit.end, c.edit.text); // one insertText: one undo step
+  toast(`Made ${c.count} change${c.count === 1 ? '' : 's'}. Ctrl/Cmd+Z undoes them all.`);
+}
+function dismissGuidance(gid) {
+  const g = visibleGuidance().find((x) => x.id === gid);
+  if (!g) return;
+  state.dismissed.add(guideKey(g));
+  store.set('dismissed', [...state.dismissed].slice(-500));
+  render();
+}
+function muteGuidance(gid) {
+  const g = visibleGuidance().find((x) => x.id === gid);
+  if (!g) return;
+  if (!state.settings.disabledRules.includes(g.rule)) state.settings.disabledRules = [...state.settings.disabledRules, g.rule];
+  saveSettings();
+  recompute();
+  toast(`Turned off "${g.ruleName || g.rule}". Turn it back on in Settings.`);
+}
+
 function muteRule(id) {
   const s = state.suggestions.find((x) => x.id === id);
   if (!s) return;
@@ -392,7 +489,7 @@ function bulkFixes() {
 }
 
 function renderCards() {
-  const counts = { all: 0, correctness: 0, clarity: 0, engagement: 0, voice: 0 };
+  const counts = { all: 0, correctness: 0, clarity: 0, engagement: 0, voice: 0, guidance: visibleGuidance().length };
   for (const s of state.suggestions) { counts.all++; counts[s.category]++; }
   for (const b of els.tabs.querySelectorAll('[data-count]')) b.textContent = counts[b.dataset.count];
   for (const b of els.tabs.querySelectorAll('button')) {
@@ -403,6 +500,7 @@ function renderCards() {
   els.bulk.hidden = bulk.length < 2 || !['all', 'correctness'].includes(state.filter);
   els.fixAll.textContent = `Accept all ${bulk.length} correctness fixes`;
 
+  if (state.filter === 'guidance') { renderGuidance(); return; }
   const list = state.suggestions.filter((s) => (state.filter === 'all' || s.category === state.filter)
     && (!state.criticalOnly || s.severity === 'critical'));
   const crit = $('btn-critical');
@@ -449,7 +547,8 @@ function renderScore() {
   const n = state.suggestions.length;
   const sev = { critical: 0, advanced: 0, style: 0 };
   for (const s of state.suggestions) sev[s.severity || 'advanced'] = (sev[s.severity || 'advanced'] || 0) + 1;
-  els.scoreMeta.textContent = state.text.trim() ? `${n} suggestion${n === 1 ? '' : 's'} · ${sev.critical} critical · ${sev.advanced} advanced · ${sev.style} style` : '';
+  const gn = visibleGuidance().length;
+  els.scoreMeta.textContent = state.text.trim() ? `${n} suggestion${n === 1 ? '' : 's'} · ${sev.critical} critical · ${sev.advanced} advanced · ${sev.style} style · Guidance: ${gn} document note${gn === 1 ? '' : 's'}` : '';
 }
 
 function renderTone() {
@@ -840,6 +939,11 @@ function handleAction(e) {
   else if (act === 'dismiss') dismiss(id);
   else if (act === 'dict') addToDictionary(id);
   else if (act === 'mute') muteRule(id);
+  else if (act === 'gopen') { state.openGuideId = state.openGuideId === btn.dataset.g ? null : btn.dataset.g; render(); }
+  else if (act === 'gjump') jumpToInstance(btn.dataset.g, Number(btn.dataset.i));
+  else if (act === 'gconsistent') makeConsistent(btn.dataset.g);
+  else if (act === 'gdismiss') dismissGuidance(btn.dataset.g);
+  else if (act === 'gmute') muteGuidance(btn.dataset.g);
   else if (act === 'improve') openImprove(Number(btn.dataset.start));
   else if (act === 'improve-close') { state.improve = null; renderCards(); }
   else if (act === 'improve-accept') acceptImprove();

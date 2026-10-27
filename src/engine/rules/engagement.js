@@ -23,7 +23,8 @@ function intensifiers(text, out) {
 // line, words in a two-word term used twice ("power sector"), and topic terms
 // (4+ uses and at least 1% of the words).
 function protectedWords(text) {
-  const keep = new Set();
+  // Round 8 (R8-4): words inside fixed unit phrases ("per cent", "₹ … crore") are never "repeated".
+  const keep = new Set(['cent', 'percent', 'lakh', 'lakhs', 'crore', 'crores', 'million', 'billion', 'units', 'kwh', 'mwh', 'gwh']);
   const all = words(text);
   const counts = new Map();
   for (const w of all) { const k = w.text.toLowerCase(); counts.set(k, (counts.get(k) || 0) + 1); }

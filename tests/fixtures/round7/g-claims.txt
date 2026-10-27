@@ -1,0 +1,3 @@
+Why storage matters for Goa
+
+Battery storage plays a significant role in grids with high solar shares. In Goa, evening demand is clearly higher than midday demand, by about 30 per cent. Storage prices have fallen dramatically, from $1,100 per kWh in 2010 to $140 in 2023. It is widely accepted that time-of-day tariffs help, and the regulator introduced them in 2022. Studies show that storage can defer network upgrades (CEA, 2021).

@@ -1,0 +1,15 @@
+Price elasticity of electricity demand in Indian states
+
+Abstract
+
+This paper estimates the price elasticity of residential electricity demand using state-level panel data. We find elasticities between -0.2 and -0.4.
+
+Keywords: electricity demand, price elasticity, panel data, India
+
+1 Introduction
+
+Electricity tariffs in India are set by state regulators. Studies show (Kumar et al., 2020) that demand responds weakly to price. This paper examines whether that result holds after 2015. Section 2 describes the data, and Section 3 will present the results. We will also discuss policy implications in Section 4.
+
+2 Data and methods
+
+We use annual data for 28 states from 2005 to 2022. Ordinary least squares (OLS) estimates are biased when prices respond to demand, so we use an instrumental variable (IV) approach. The IV is the cost of coal delivered to each state, e.g. at the pithead price plus freight. Demand fell significantly (p < 0.01) after tariff increases. The standard deviation (SD) of tariffs is reported in Table 2, and Figure 3 plots the series.

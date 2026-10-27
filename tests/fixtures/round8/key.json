@@ -1,0 +1,33 @@
+{
+  "note": "Round-8 stress documents (correct prose, written by the reviewer). Same harness as tests/fixtures/round7/key.json.",
+  "options": [ {}, { "domain": "academic" }, { "domain": "business", "goals": { "formality": "formal" } } ],
+  "files": {
+    "p1-pdf.txt": {
+      "forbidFix": ["mines in.", "in. 2012"],
+      "forbidRule": [ { "rule": "paragraph-end", "match": "*" }, { "rule": "acronym-undefined", "match": "MU" } ]
+    },
+    "p6-wrapped-years.txt": { "forbidRule": [ { "rule": "paragraph-end", "match": "*" } ] },
+    "p2-mail.txt": {
+      "forbidRule": [
+        { "rule": "acronym-undefined", "match": "PO" },
+        { "rule": "paragraph-end", "match": "*" },
+        { "rule": "number-separator", "match": "98220 41736" },
+        { "rule": "number-separator", "match": "4512/2023" },
+        { "rule": "number-separator", "match": "88317" }
+      ]
+    },
+    "p3-academic.txt": {
+      "forbidRule": [ { "rule": "consistency-percent", "match": "percentage points" }, { "rule": "consistency-percent", "match": "95% CI" } ]
+    },
+    "p4-report.txt": {
+      "forbidRule": [
+        { "rule": "consistency-case", "match": "The Department commissioned" },
+        { "rule": "consistency-case", "match": "State Government" },
+        { "rule": "repetition", "match": "per cent to 12.9" },
+        { "rule": "acronym-undefined", "match": "RDSS" },
+        { "rule": "acronym-undefined", "match": "AT&C" }
+      ]
+    },
+    "p5-indian.txt": { "forbidRule": [ { "rule": "paragraph-end", "match": "*" } ] }
+  }
+}

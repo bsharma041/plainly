@@ -13,6 +13,8 @@ import { SPELLING } from './data/spelling.js';
 import { IRREGULAR_BASE } from './morph.js';
 import { USAGE_INSERTS, NOMINALISATIONS, NOMINALISATIONS_US } from './data/usage-lists.js';
 import { neitherPairsWithOr } from './neither.js';
+import { LIGHT_VERB_INSERTS } from './data/document-lists.js';
+import { REGISTER_INSERTS } from './rules/usage3.js';
 import { words } from './text.js';
 
 const lower = (s) => s.toLowerCase().replace(/[’]/g, "'");
@@ -33,6 +35,8 @@ STOPWORDS.forEach((w) => CLOSED.add(w));
 for (const c of CONFUSIONS) addAll(c.title);
 // Round 1 usage rules: every word they can insert (data/usage-lists.js).
 addAll(USAGE_INSERTS);
+addAll(LIGHT_VERB_INSERTS); // round 6 (B3)
+addAll(REGISTER_INSERTS); // round 6 (IE1, P1)
 Object.values(NOMINALISATIONS).flat().forEach(addAll);
 Object.values(NOMINALISATIONS_US).flat().forEach(addAll);
 addAll(`I me we us he him she her they them it you someone whom who
@@ -115,7 +119,11 @@ export function isNeitherNorSwap(text, fix) {
  * @param {{start:number,end:number,text:string}} fix
  * @returns {{ ok: boolean, reason?: string }}
  */
-export function checkFix(text, fix, { remote = false, maxGrowth = 4 } = {}) {
+// Round 6: consistency rules switch a minority variant to the writer's own majority form. Such a fix may use a
+// word that isn't in the span or the closed lists, but only if it occurs verbatim elsewhere in the document.
+export const DOC_VARIANT_RULES = new Set(['consistency-spelling', 'consistency-hyphen', 'consistency-case', 'consistency-percent', 'number-grouping', 'number-separator', 'date-format']);
+
+export function checkFix(text, fix, { remote = false, maxGrowth = 4, docVariant = false } = {}) {
   const before = text.slice(fix.start, fix.end);
   const after = fix.text;
   const beforeTokens = tokens(before);
@@ -130,9 +138,14 @@ export function checkFix(text, fix, { remote = false, maxGrowth = 4 } = {}) {
   // Outside (deep-check) fixes stay small and local: no rephrasing of whole clauses.
   if (remote && (beforeTokens.length > 4 || added.length > 2)) return { ok: false, reason: 'remote fix too large' };
 
+  let docWords = null;
   for (const w of added) {
     if (isAiWord(w)) return { ok: false, reason: `adds AI-filler word "${w}"` };
     if (w.includes('-') && w.split('-').every((p) => own.has(p))) continue;
+    if (docVariant && !remote && !CLOSED.has(w) && !isFormOf(w, own)) {
+      docWords ??= new Set(tokens(text.slice(0, fix.start) + ' ' + text.slice(fix.end)));
+      if (docWords.has(w)) continue;
+    }
     if (!CLOSED.has(w) && !isFormOf(w, own)) return { ok: false, reason: `adds outside word "${w}"` };
   }
   // maxGrowth is raised only for a composed sentence preview (U1), whose parts each passed with the
@@ -154,6 +167,7 @@ export const isSafeFix = (text, fix, opts) => checkFix(text, fix, opts).ok;
 /** Strip unsafe fixes from a suggestion. A suggestion with none left becomes advice only. */
 export function guardSuggestion(text, s) {
   const remote = s.source === 'languagetool';
-  const fixes = s.fixes.filter((f) => isSafeFix(text, f, { remote }));
+  const docVariant = !remote && DOC_VARIANT_RULES.has(s.rule);
+  const fixes = s.fixes.filter((f) => isSafeFix(text, f, { remote, docVariant }));
   return fixes.length === s.fixes.length ? s : { ...s, fixes };
 }

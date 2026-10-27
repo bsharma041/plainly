@@ -1,0 +1,7 @@
+Organising data for the utility
+
+We organized the meter data into a single dataset. The data set covers 2019 to 2023. Staff can request access by e-mail, and the email address is on the website. The utilisation of feeders was low, and we analysed peak loads by feeder. The centre of the network is in Panaji, and the program for upgrades is funded by the state's capital programme.
+
+Keywords: meter data, feeder utilisation, DISCOM performance
+
+The analysis will also cover distribution companies (DISCOMs) in two neighbouring states. This note uses the same method.

@@ -10,6 +10,7 @@ import {
 } from '../data/usage-lists.js';
 import { STOPWORDS } from '../data/lists.js';
 import { RULE_INFO } from '../data/rule-info.js';
+import { LIGHT_NOMS, LIGHT_VERBS, LIGHT_PAIRS, verbForms } from '../data/document-lists.js';
 import { matchCase, splitSentences, escapeRegex, isSentenceStart } from '../text.js';
 import { baseFromIng, pluralize, pluralVerb, ingForm } from '../morph.js';
 import { wantsAn, detectDialect } from './correctness.js';
@@ -58,41 +59,52 @@ const HAVE = new Set(['has', 'have', 'had']);
 // ---------- R1 compound-subject agreement ----------
 const R1_HEAD = /^(The|This|Its|Their|Our|Such|His|Her|My|Your)\s+([A-Za-z]+)\s+and\s+(?:(?:the|its|their)\s+)?([A-Za-z]+)\s+(of|for|in|on|at|to)\s+/i;
 
+// Round 6 (B1): the same subject pattern right after a clause boundary inside the sentence.
+const R1_MID = /^(the|its|their|his|her|our|this)\s+([A-Za-z]+)\s+and\s+(?:(?:the|its|their)\s+)?([A-Za-z]+)\s+(of|for|in|on|at|to)\s+/i;
+const R1_BOUNDARY = /,\s+(?:and|but|while|whereas)\s+|;\s+|\b(?:because|although|though|since|whereas|while|if|when|that)\s+/gi;
+
+function compoundAt(text, s, off, re, out) {
+  const m = re.exec(s.text.slice(off));
+  if (!m) return false;
+  const n1 = m[2].toLowerCase();
+  const n2 = m[3].toLowerCase();
+  if (!isNounish(n1) || !isNounish(n2)) return false;
+  if (UNIT_BINOMIALS.has(`${n1} and ${n2}`)) return false;
+  const restStart = off + m[0].length;
+  const tok = /[A-Za-z][A-Za-z'’-]*|[,;:—–()]/g;
+  tok.lastIndex = restStart;
+  let t;
+  let count = 0;
+  while ((t = tok.exec(s.text)) && count < 12) {
+    const w = t[0].toLowerCase();
+    if (!/[a-z]/.test(w)) break; // punctuation first: the verb may belong to another clause
+    count++;
+    const plural = pluralVerb(w);
+    if (plural) {
+      const at = s.start + t.index;
+      const fix = matchCase(t[0], plural);
+      out.push(make('compound-subject', 'correctness', 'critical', at, at + t[0].length, t[0], [fix],
+        'Subject–verb agreement',
+        `Two nouns joined by "and" ("${n1} and ${n2}") form a plural subject, so the verb is plural. Keep "${t[0]}" only if you mean one combined process.`));
+      return true;
+    }
+    if (RELATIVES.has(w) || BE.has(w) || MODALS.has(w) || HAVE.has(w)) break;
+  }
+  return false;
+}
+
 function compoundSubject(text, out) {
   for (const s of splitSentences(text)) {
     if (skip(text, s.start)) continue;
-    let off = 0;
-    let m = R1_HEAD.exec(s.text);
-    if (!m) {
+    if (!compoundAt(text, s, 0, R1_HEAD, out)) {
       const opener = s.text.match(/^[A-Z][^,]{0,50},\s+/);
-      if (!opener) continue;
-      off = opener[0].length;
-      m = R1_HEAD.exec(s.text.slice(off));
-      if (!m) continue;
+      if (opener) compoundAt(text, s, opener[0].length, R1_HEAD, out);
     }
-    const n1 = m[2].toLowerCase();
-    const n2 = m[3].toLowerCase();
-    if (!isNounish(n1) || !isNounish(n2)) continue;
-    if (UNIT_BINOMIALS.has(`${n1} and ${n2}`)) continue;
-    const restStart = off + m[0].length;
-    const tok = /[A-Za-z][A-Za-z'’-]*|[,;:—–()]/g;
-    tok.lastIndex = restStart;
-    let t;
-    let count = 0;
-    while ((t = tok.exec(s.text)) && count < 12) {
-      const w = t[0].toLowerCase();
-      if (!/[a-z]/.test(w)) break; // punctuation first: the verb may belong to another clause
-      count++;
-      const plural = pluralVerb(w);
-      if (plural) {
-        const at = s.start + t.index;
-        const fix = matchCase(t[0], plural);
-        out.push(make('compound-subject', 'correctness', 'critical', at, at + t[0].length, t[0], [fix],
-          'Subject–verb agreement',
-          `Two nouns joined by "and" ("${n1} and ${n2}") form a plural subject, so the verb is plural. Keep "${t[0]}" only if you mean one combined process.`));
-        break;
-      }
-      if (RELATIVES.has(w) || BE.has(w) || MODALS.has(w) || HAVE.has(w)) break;
+    R1_BOUNDARY.lastIndex = 0;
+    let b;
+    while ((b = R1_BOUNDARY.exec(s.text))) {
+      if (b.index === 0) continue;
+      compoundAt(text, s, b.index + b[0].length, R1_MID, out);
     }
   }
 }
@@ -344,6 +356,90 @@ function nominalisations(text, out, opts) {
   }
 }
 
+
+// ---------- B4 pronoun–antecedent number (round 6, R13) ----------
+const ANTECEDENTS = 'state|country|city|region|district|sector|system|policy|method|approach|model|framework|paper|study|report|analysis|scheme|plant|grid|utility';
+const B4_RE = new RegExp(`\\bthe\\s+(${ANTECEDENTS})\\b`, 'gi');
+const COLLECTIVE = new Set(['government', 'council', 'committee', 'team', 'company', 'board', 'ministry', 'commission', 'department']);
+const B4_STOP = new Set(['and', 'or', 'which', 'who', 'that', 'because', 'although', 'though', 'while', 'when', 'if', 'whereas', 'since', 'but', 'so']);
+
+function pronounAgreement(text, out) {
+  B4_RE.lastIndex = 0;
+  let m;
+  while ((m = B4_RE.exec(text))) {
+    if (skip(text, m.index)) continue;
+    const after = text.slice(m.index + m[0].length, m.index + m[0].length + 120);
+    const toks = [];
+    const re = /[A-Za-z][A-Za-z'’-]*|[,;:.!?()—–]/g;
+    let t;
+    while ((t = re.exec(after)) && toks.length < 10) toks.push({ w: t[0], i: t.index });
+    if (toks[0] && COLLECTIVE.has(toks[0].w.toLowerCase())) continue; // "the state government … their"
+    for (let k = 0; k < toks.length && k <= 8; k++) {
+      const w = toks[k].w.toLowerCase();
+      if (!/[a-z]/.test(w) || B4_STOP.has(w)) break; // clause boundary
+      if (w === 'their') {
+        const at = m.index + m[0].length + toks[k].i;
+        out.push(make('pronoun-agreement', 'correctness', 'advanced', at, at + 5, toks[k].w, [matchCase(toks[k].w, 'its')],
+          'Pronoun agreement: "its"', `"The ${m[1].toLowerCase()}" is singular, so the pronoun that refers back to it is "its", not "their".`));
+        break;
+      }
+      if (w === 'they') {
+        const at = m.index + m[0].length + toks[k].i;
+        out.push(make('pronoun-agreement', 'correctness', 'advanced', at, at + 4, toks[k].w, [],
+          'Pronoun agreement', `"The ${m[1].toLowerCase()}" is singular, but "they" is plural. Use "it" and adjust the verb, or make the noun plural.`));
+        break;
+      }
+      // A plural noun in between may be the real antecedent.
+      if (/[^s]s$/.test(w) && !SINGULAR_S.has(w) && k > 0 && !/^(is|was|has|does)$/.test(w) && !PLURAL_VERB_S.has(w)) break;
+    }
+  }
+}
+// Third-person verbs ending in -s that sit between the noun and "their" ("the utility needs their …").
+const PLURAL_VERB_S = new Set(['needs', 'wants', 'publishes', 'makes', 'takes', 'gets', 'sets', 'keeps', 'meets', 'cuts', 'clears', 'reports', 'runs', 'shows', 'uses', 'loses']);
+
+// ---------- B3 light-verb nominalisations (round 6, R8 c) ----------
+const LV_KEYS = Object.keys(LIGHT_VERBS).sort((a, b) => b.length - a.length).map((k) => k.replace(' ', '\\s+')).join('|');
+const LV_RE = new RegExp(`\\b(${LV_KEYS})\\s+((?:a|an|the)\\s+([a-z]+)\\s+(of|about|on))\\b`, 'gi');
+
+function lightVerbs(text, out, opts) {
+  let us = null;
+  const isUs = () => {
+    if (us == null) us = opts.dialect === 'us' || ((opts.dialect || 'auto') === 'auto' && detectDialect(text) === 'us');
+    return us;
+  };
+  LV_RE.lastIndex = 0;
+  let m;
+  while ((m = LV_RE.exec(text))) {
+    if (skip(text, m.index)) continue;
+    const lv = m[1].toLowerCase().replace(/\s+/g, ' ');
+    const lvBase = { makes: 'make', made: 'make', making: 'make', conducts: 'conduct', conducted: 'conduct', conducting: 'conduct',
+      'carries out': 'carry out', 'carried out': 'carry out', 'carrying out': 'carry out', performs: 'perform', performed: 'perform', performing: 'perform',
+      undertakes: 'undertake', undertook: 'undertake', undertaken: 'undertake', undertaking: 'undertake', provides: 'provide', provided: 'provide',
+      providing: 'provide', gives: 'give', gave: 'give', given: 'give', giving: 'give', holds: 'hold', held: 'hold', holding: 'hold',
+      has: 'have', had: 'have', having: 'have', takes: 'take', took: 'take', taken: 'take', taking: 'take' }[lv] || lv;
+    const nom = m[3].toLowerCase();
+    const prep = m[4].toLowerCase();
+    let base = null;
+    let keep = '';
+    const pair = LIGHT_PAIRS.find((p) => p.verbs.includes(lvBase) && p.phrase.test(m[2]));
+    if (pair) { base = pair.base; keep = pair.keep ? ` ${pair.keep}` : ''; }
+    else if (prep === 'of' && LIGHT_NOMS[nom] && !['have', 'take', 'hold', 'give', 'provide'].includes(lvBase)) {
+      base = LIGHT_NOMS[nom];
+      if (base === 'analyse' && isUs()) base = 'analyze';
+    }
+    if (!base) continue;
+    // Tense follows the light verb; after has/have/had/been it is the past participle.
+    let kind = LIGHT_VERBS[lv];
+    const prev = (text.slice(Math.max(0, m.index - 20), m.index).match(/([a-z]+)\s+$/i) || [])[1]?.toLowerCase() || '';
+    if (/^(has|have|had|been|having)$/.test(prev)) kind = 'part';
+    const f = verbForms(base);
+    const verb = { base: f.base, s: f.s, past: f.past, part: f.part, ing: f.ing }[kind];
+    const fix = matchCase(m[0], `${verb}${keep}`);
+    out.push(make('nominalisation', 'clarity', 'advanced', m.index, m.index + m[0].length, m[0], [fix],
+      `Use the verb: "${fix}"`, `"${m[0]}" turns an action into a noun with an empty verb. "${fix}" says it directly.`));
+  }
+}
+
 export function usageRules(text, opts = {}) {
   const out = [];
   const cats = opts.categories || {};
@@ -353,11 +449,13 @@ export function usageRules(text, opts = {}) {
     prepositions(text, out, opts);
     listParallel(text, out);
     articleIdioms(text, out);
+    pronounAgreement(text, out);
   }
   if (cats.clarity !== false) {
     wordyPurpose(text, out);
     vaguePhrases(text, out, opts);
     nominalisations(text, out, opts);
+    lightVerbs(text, out, opts);
   }
   return out;
 }

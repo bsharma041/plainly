@@ -38,6 +38,15 @@ function wordy(text, out) {
     let m;
     while ((m = re.exec(text))) {
       const start = m.index, end = start + m[0].length;
+      // Round 7 (BE14): "revert back with …" means "reply" in Indian English; offer that first.
+      if (rule === 'wordy' && /^revert back$/i.test(m[0].trim()) && /^\s+(with|to me|to us|at the earliest)\b/i.test(text.slice(end))) {
+        out.push({
+          rule, category: CAT, scope: 'word', start, end, original: m[0],
+          title: 'Try "reply"', message: '"Revert back" repeats itself, and in most varieties of English "revert" means "go back to". To ask for an answer, write "reply".',
+          fixes: [phraseFix(text, start, end, 'reply'), phraseFix(text, start, end, 'revert')],
+        });
+        continue;
+      }
       // "the majority of the members" -> "most of the members", not "most the members"
       const target = to === 'most' && DETERMINERS.test(text.slice(end, end + 12)) ? 'most of' : to;
       const orig = m[0].trim();

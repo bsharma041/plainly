@@ -10,7 +10,7 @@ export const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
  * @param {Array} suggestions merged suggestions
  * @param {{activeId?: string, anchor?: {start:number,end:number}}} state
  */
-export function renderMirror(mirror, text, suggestions, { activeId, anchor } = {}) {
+export function renderMirror(mirror, text, suggestions, { activeId, anchor, highlights = [] } = {}) {
   const active = suggestions.find((s) => s.id === activeId);
   let marks = suggestions.filter((s) => s.scope !== 'sentence');
 
@@ -18,6 +18,8 @@ export function renderMirror(mirror, text, suggestions, { activeId, anchor } = {
   const blocks = [];
   if (active && active.scope === 'sentence') blocks.push({ ...active, kind: 'sentence' });
   if (anchor) blocks.push({ id: '__anchor', start: anchor.start, end: anchor.end, kind: 'anchor' });
+  // Guidance instances (round 6): a soft background only, so the glyphs and alignment never change.
+  for (const h of highlights) blocks.push({ id: `__guide${h.start}`, start: h.start, end: h.end, kind: 'guide' });
   if (blocks.length) {
     marks = marks.filter((m) => !blocks.some((b) => m.start < b.end && m.end > b.start));
   }
@@ -26,7 +28,9 @@ export function renderMirror(mirror, text, suggestions, { activeId, anchor } = {
     ...marks.map((m) => ({ start: m.start, end: m.end, html: (inner) => `<mark class="m m-${m.category} sev-${escapeHtml(m.severity || 'advanced')}${m.id === activeId ? ' is-active' : ''}" data-id="${escapeHtml(m.id)}">${inner}</mark>` })),
     ...blocks.map((b) => ({ start: b.start, end: b.end, html: (inner) => b.kind === 'anchor'
       ? `<span class="m-anchor" data-anchor="1">${inner}</span>`
-      : `<mark class="m-sentence m-${b.category}" data-id="${escapeHtml(b.id)}">${inner}</mark>` })),
+      : b.kind === 'guide'
+        ? `<span class="m-guide" data-guide="${Number(b.start)}">${inner}</span>`
+        : `<mark class="m-sentence m-${b.category}" data-id="${escapeHtml(b.id)}">${inner}</mark>` })),
   ].sort((a, b) => a.start - b.start);
 
   let html = '';

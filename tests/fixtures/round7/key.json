@@ -1,0 +1,68 @@
+{
+  "note": "Round-7 stress documents (correct prose, written by the reviewer). For each file and each option set in 'options', run runChecks + runGuidance. 'forbidFix' = no fix text (inline card or guidance instance) may produce this result: the check applies the fix and asserts the resulting document does not contain the string. 'forbidRule' = no finding or card with that rule id may overlap the given match. 'expect' = findings that must exist (rule, match, first fix or null).",
+  "options": [ {}, { "domain": "academic" }, { "domain": "business", "goals": { "formality": "formal" } } ],
+  "files": {
+    "a-policy.txt": {
+      "forbidFix": ["government of Goa", "ministry of New", "$6,50,000", "4,03,001"],
+      "forbidRule": [
+        { "rule": "consistency-case", "match": "Government of Goa" },
+        { "rule": "consistency-case", "match": "Ministry of New" },
+        { "rule": "number-grouping", "match": "$650,000" },
+        { "rule": "number-separator", "match": "403001" }
+      ],
+      "expect": [ { "rule": "number-separator", "match": "3200", "fix": "3,200" } ]
+    },
+    "b-academic.txt": {
+      "forbidRule": [
+        { "rule": "study-tense", "match": "will present" },
+        { "rule": "study-tense", "match": "will also discuss" },
+        { "rule": "acronym-undefined", "match": "OLS" },
+        { "rule": "acronym-undefined", "match": "IV" },
+        { "rule": "unsupported-claim", "match": "Studies show" },
+        { "rule": "unsupported-claim", "match": "significantly" }
+      ]
+    },
+    "c-business.txt": {
+      "forbidFix": ["a MoU"],
+      "forbidRule": [
+        { "rule": "a-an", "match": "an MoU" },
+        { "rule": "acronym-undefined", "match": "YoY" },
+        { "rule": "acronym-undefined", "match": "EBITDA" },
+        { "rule": "acronym-undefined", "match": "KYC" },
+        { "rule": "acronym-undefined", "match": "MoU" },
+        { "rule": "acronym-undefined", "match": "Q3" },
+        { "rule": "paragraph-end", "match": "Dear Team," },
+        { "rule": "paragraph-end", "match": "Best regards," }
+      ]
+    },
+    "d-wrapped.txt": { "forbidRule": [ { "rule": "paragraph-end", "match": "*" } ] },
+    "w-wrapped-caps.txt": { "forbidRule": [ { "rule": "paragraph-end", "match": "*" }, { "rule": "consistency-case", "match": "Government buildings" } ] },
+    "e-case.txt": {
+      "forbidFix": ["government of Goa", "The commission held"],
+      "forbidRule": [
+        { "rule": "consistency-case", "match": "Government of Goa" },
+        { "rule": "consistency-case", "match": "The Commission held" }
+      ]
+    },
+    "g-claims.txt": {
+      "forbidRule": [
+        { "rule": "unsupported-claim", "match": "clearly higher" },
+        { "rule": "unsupported-claim", "match": "dramatically" },
+        { "rule": "unsupported-claim", "match": "Studies show" },
+        { "rule": "acronym-undefined", "match": "CEA" }
+      ],
+      "expectUnder": { "domain": "academic" },
+      "expect": [
+        { "rule": "unsupported-claim", "match": "significant", "fix": null },
+        { "rule": "unsupported-claim", "match": "It is widely accepted that", "fix": null }
+      ]
+    },
+    "j-mixed.txt": {
+      "forbidRule": [ { "rule": "plain-word", "match": "feeder utilisation" } ],
+      "expect": [
+        { "rule": "consistency-spelling", "match": "organized", "fix": "organised" },
+        { "rule": "keyword-unused", "match": "DISCOM performance", "fix": null }
+      ]
+    }
+  }
+}

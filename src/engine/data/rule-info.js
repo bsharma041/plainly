@@ -79,6 +79,103 @@ export const RULE_INFO = {
     explanation: 'One word of the pair already carries the meaning of the other.',
     example: { wrong: 'past experience', right: 'experience' },
   },
+  // Round 6 rules
+  'pronoun-agreement': {
+    name: 'Pronoun agreement',
+    explanation: 'A singular noun such as "the utility" takes "its", not "their".',
+    example: { wrong: 'The utility must clear their backlog.', right: 'The utility must clear its backlog.' },
+  },
+  'consistency-spelling': {
+    name: 'Consistent spelling',
+    explanation: 'Use one spelling system (British or American) throughout; the fix follows the one you use most.',
+    example: { wrong: 'decarbonisation … decarbonization', right: 'decarbonisation … decarbonisation' },
+  },
+  'consistency-hyphen': {
+    name: 'Consistent hyphenation',
+    explanation: 'Write a compound the same way each time it describes a noun; the fix follows the form you use most.',
+    example: { wrong: 'net-metering approval … net metering approvals', right: 'net-metering approval … net-metering approvals' },
+  },
+  'consistency-case': {
+    name: 'Consistent capitalisation',
+    explanation: 'Capitalise a term the same way each time it appears mid-sentence.',
+    example: { wrong: 'the state government … the State Government', right: 'the state government … the state government' },
+  },
+  'consistency-percent': {
+    name: 'Consistent percentages',
+    explanation: 'Write percentages one way throughout: "per cent", "percent" or "%".',
+    example: { wrong: '4 per cent … 20 percent', right: '4 per cent … 20 per cent' },
+  },
+  'acronym-before-definition': {
+    name: 'Acronym used before definition',
+    explanation: 'Spell out an acronym the first time it appears, not later.',
+    example: { wrong: 'GED supplies … The Goa Electricity Department (GED) reported …', right: 'The Goa Electricity Department (GED) supplies … GED reported …' },
+  },
+  'acronym-undefined': {
+    name: 'Acronym never defined',
+    explanation: 'Readers outside your organisation may not know an acronym; spell it out once.',
+    example: { wrong: 'as per the BOQ', right: 'as per the bill of quantities (BOQ)' },
+  },
+  'acronym-redefined': {
+    name: 'Acronym defined twice',
+    explanation: 'After the first definition, use the acronym alone.',
+    example: { wrong: 'demand-side management (DSM) … demand-side management (DSM)', right: 'demand-side management (DSM) … DSM' },
+  },
+  'number-grouping': {
+    name: 'Number grouping',
+    explanation: 'Group large numbers in one system: Indian (6,50,000) or international (650,000).',
+    example: { wrong: '6,50,000 consumers … 120,000 complaints', right: '6,50,000 consumers … 1,20,000 complaints' },
+  },
+  'number-separator': {
+    name: 'Number separators',
+    explanation: 'Write numbers of 1,000 and above the same way throughout, with or without separators.',
+    example: { wrong: '1,850 households … 2450 meters', right: '1,850 households … 2,450 meters' },
+  },
+  'study-tense': {
+    name: 'Study tense',
+    explanation: 'Describe your own study in one time frame: planned (future) or done/in progress (present or past).',
+    example: { wrong: 'This paper examines … The assessment will use …', right: 'This paper examines … The assessment uses …' },
+  },
+  'unsupported-claim': {
+    name: 'Unsupported claim',
+    explanation: 'Phrases like "it is well known" or "studies show" assert support without showing it.',
+    example: { wrong: 'Studies show that prices will rise.', right: 'The IEA (2023) projects that prices will rise.' },
+  },
+  'paragraph-end': {
+    name: 'Missing full stop',
+    explanation: 'Every paragraph of running text ends with a full stop (or other end punctuation).',
+    example: { wrong: 'A breakdown by item is attached', right: 'A breakdown by item is attached.' },
+  },
+  'paragraph-same-start': {
+    name: 'Repeated sentence openings',
+    explanation: 'Three or more sentences in a row with the same opening read like a list; vary or combine them.',
+    example: { wrong: 'The department should … The department should … The department receives …', right: 'The department should … and … It receives …' },
+  },
+  'paragraph-long': {
+    name: 'Long paragraph',
+    explanation: 'Very long paragraphs are hard to follow; split where the topic shifts.',
+    example: { wrong: 'One 190-word block', right: 'Two paragraphs of about 90 words' },
+  },
+  'keyword-unused': {
+    name: 'Keyword not used',
+    explanation: 'A keyword should name something the text actually discusses.',
+    example: { wrong: 'Keywords: heat stress (never mentioned)', right: 'Keywords: cooling demand (discussed in the text)' },
+  },
+  // Round 6 P1 rules
+  'intro-clause-comma': {
+    name: 'Comma after opening clause',
+    explanation: 'A sentence that opens with an "if/when/because …" clause takes a comma where the main clause starts.',
+    example: { wrong: 'If you would like to discuss the figures I am free on Thursday.', right: 'If you would like to discuss the figures, I am free on Thursday.' },
+  },
+  'register-in': {
+    name: 'Register (Indian English)',
+    explanation: 'Some phrases common in Indian office English read as old-fashioned or unclear to other readers.',
+    example: { wrong: 'Kindly revert at the earliest.', right: 'Please reply as soon as you can.' },
+  },
+  'date-format': {
+    name: 'Date format',
+    explanation: 'Write dates one way throughout, and avoid numeric dates that read differently in different countries.',
+    example: { wrong: '12 June … June 3 … 20/06/2024', right: '12 June … 3 June … 20 June 2024' },
+  },
   // Existing rules
   'a-an': { name: 'Article a/an', explanation: 'Use "an" before a vowel sound and "a" before a consonant sound.', example: { wrong: 'a error', right: 'an error' } },
   'repeated-word': { name: 'Repeated word', explanation: 'The same word appears twice in a row.', example: { wrong: 'the the report', right: 'the report' } },

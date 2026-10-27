@@ -37,6 +37,10 @@ function repeatedWords(text, out) {
   }
 }
 
+// Acronyms pronounced as words, not letter by letter.
+const SPOKEN_ACRONYMS = new Set(['NASA', 'NATO', 'UNESCO', 'UNICEF', 'SCADA', 'OPEC', 'ASEAN', 'SAARC', 'FICCI', 'ISRO', 'DRDO', 'NITI', 'AIIMS',
+  'SEBI', 'NABARD', 'LASER', 'RADAR', 'SONAR', 'COVID', 'BRICS', 'ASCII', 'GIF', 'JPEG', 'PIN', 'RAM', 'ROM', 'SIM', 'CAPTCHA', 'NIMBY', 'OFGEM', 'IRENA', 'SECI', 'NEDA']);
+
 export function wantsAn(word) {
   // "an X-ray", "an F-16", "a T-shirt": a single letter is read by its name.
   if (/^[a-z]-/i.test(word)) return /^[aefhilmnorsx]-/i.test(word);
@@ -51,7 +55,15 @@ function articles(text, out) {
   while ((m = re.exec(text))) {
     const [, art, next] = m;
     if (next.length < 2) continue; // "a b c", "an A grade"
-    if (next === next.toUpperCase()) continue; // acronyms: pronunciation varies
+    // Round 7 (H5): initialisms (2+ capitals) are read by letter names: "an MoU", "an NGO", "a UN agency".
+    // Acronyms spoken as words ("a NATO base", "a NASA program") use the word's first sound.
+    const caps = (next.match(/[A-Z]/g) || []).length;
+    const letters = next.replace(/[^A-Za-z]/g, '');
+    let initialism = null;
+    if (caps >= 2 && (/[a-z]/.test(next) || letters.length <= 4)) {
+      const word = SPOKEN_ACRONYMS.has(letters.toUpperCase());
+      initialism = word ? /^[AEIO]/i.test(next) : /^[AEFHILMNORSX]/.test(next);
+    } else if (next === next.toUpperCase()) continue; // longer all-caps words: pronunciation varies
     const prev = text[m.index - 1];
     if (prev && /[A-Za-z'’-]/.test(prev)) continue;
     // "Vitamin A", "Scenario A is": a capital A mid-sentence is a label, not the article.
@@ -59,7 +71,7 @@ function articles(text, out) {
     // Words starting "uni" split between sounds (unicorn vs unimportant); stay quiet unless listed.
     if (/^uni/i.test(next) && !A_BEFORE_VOWEL_LETTER.test(next)) continue;
     const isAn = art.toLowerCase() === 'an';
-    const shouldBeAn = wantsAn(next);
+    const shouldBeAn = initialism ?? wantsAn(next);
     if (isAn === shouldBeAn) continue;
     const fix = matchCase(art, shouldBeAn ? 'an' : 'a');
     out.push(make('a-an', m.index, m.index + art.length, art, fix, `Use "${fix.toLowerCase()}"`,

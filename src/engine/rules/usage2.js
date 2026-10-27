@@ -262,13 +262,14 @@ function serialComma(text, out, opts) {
 // ---------- R10 title capitalisation ----------
 /** Heading lines (round 3, F6): the first line of the document, or a set-off short line followed by a
  *  line of 8+ words. Runs of 3+ consecutive short lines are lists. Each entry has `hasNext`. */
-function headingParagraphs(text, paras = paragraphs(text)) {
+export function headingParagraphs(text, paras = paragraphs(text)) {
   // Round 3 (F6): a heading is set off: the first line of the document, or a line with a blank line (or the
   // start) above and a line of 8+ words below. Runs of 3+ consecutive short lines are lists, not headings.
   const short = (p) => { const n = words(p.text).length; return n >= 1 && n <= 20 && !/[.!?]["'”’)]*\s*$/.test(p.text); };
   return paras.filter((p, i) => {
     const ws = words(p.text);
     if (!(ws.length >= 2 && short(p)) || isKeywords(p.text)) return false;
+    if (/^\s*(subject|re|fwd|fw|from|to|cc|bcc|date)\s*:/i.test(p.text)) return false; // round 6 (N7): email header lines
     const prev = paras[i - 1], next = paras[i + 1];
     const adjacent = (a, b) => a && b && !/\n\s*\n/.test(text.slice(a.end, b.start));
     let run = 1;
@@ -447,6 +448,46 @@ function verbPatterns(text, out) {
   }
 }
 
+
+// ---------- B2 verb + -ing -> verb + to-infinitive (round 6, R12 b) ----------
+const INF_VERBS = ['decide', 'refuse', 'manage', 'afford', 'agree', 'hope', 'fail', 'promise', 'threaten', 'offer', 'pretend', 'deserve',
+  'want', 'wish', 'expect', 'seem', 'tend', 'aim'];
+const inflect = (v) => {
+  const e = v.endsWith('e');
+  const y = /[^aeiou]y$/.test(v);
+  const ed = e ? `${v}d` : y ? `${v.slice(0, -1)}ied` : (v === 'fail' || v === 'offer' || v === 'threaten') ? `${v}ed` : `${v}ed`;
+  const ing = e && !/ee$/.test(v) ? `${v.slice(0, -1)}ing` : `${v}ing`;
+  const sForm = /(s|sh|ch|x)$/.test(v) ? `${v}es` : y ? `${v.slice(0, -1)}ies` : `${v}s`;
+  return [v, sForm, ed, ing];
+};
+const INF_RE = new RegExp(`\\b(${INF_VERBS.flatMap(inflect).join('|')})\\s+([a-z]+ing)\\b`, 'gi');
+const ING_NOUNS = new Set(`funding building planning training meeting housing spending timing pricing financing setting opening hearing
+  ruling booking offering listing rating warning learning marketing processing sitting earnings savings findings proceedings`.trim().split(/\s+/));
+
+function infinitives(text, out) {
+  INF_RE.lastIndex = 0;
+  let m;
+  while ((m = INF_RE.exec(text))) {
+    const ing = m[2].toLowerCase();
+    if (skip(text, m.index)) continue;
+    const base = baseFromIng(ing);
+    if (!BASE_VERBS.has(base)) continue;
+    if (/^aim/i.test(m[1]) && /^\s*at\b/i.test(text.slice(m.index + m[1].length))) continue;
+    // The -ing word must take an object: a determiner, a plural noun, a number or a name follows.
+    const nx = text.slice(m.index + m[0].length).match(/^\s+([A-Za-z0-9₹][A-Za-z0-9,'’-]*)/);
+    if (!nx) continue;
+    const w = nx[1];
+    const lw = w.toLowerCase();
+    const objectLike = DET_POSS.has(lw) || /^[0-9₹]/.test(w) || /^[A-Z]/.test(w) || (/[^s]s$/.test(lw) && !STOPWORDS.has(lw) && !/^(is|was|has|does)$/.test(lw));
+    if (!objectLike) continue;
+    // "agreed pricing rules": a word that is also a noun counts as a verb only before a determiner ("decided offering a subsidy").
+    if (ING_NOUNS.has(ing) && !DET_POSS.has(lw)) continue;
+    const fix = `${m[1]} to ${base}`;
+    out.push(make('verb-pattern', 'correctness', 'advanced', m.index, m.index + m[0].length, m[0], [fix],
+      `Use "${fix}"`, `"${m[1]}" is followed by "to" + verb, not an -ing form.`));
+  }
+}
+
 export function usageRules2(text, opts = {}) {
   const out = [];
   if ((opts.categories || {}).correctness === false) return out;
@@ -456,5 +497,6 @@ export function usageRules2(text, opts = {}) {
   titleCase(text, out);
   hyphenation(text, out);
   verbPatterns(text, out);
+  infinitives(text, out);
   return out;
 }

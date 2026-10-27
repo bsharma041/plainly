@@ -1,0 +1,11 @@
+Household demand for cooling in coastal Goa
+
+Abstract
+
+This study estimates how household demand for cooling responds to higher summer temperatures in coastal Goa. We combine smart-meter data with a survey of 412 households and find that demand rises by about 3 per cent for each additional degree of daily maximum temperature.
+
+Keywords: cooling demand, smart meters, household survey, Goa
+
+Methods
+
+We obtained hourly smart-meter readings for 2019 to 2023 from the Goa Electricity Department (GED). The readings cover 1,850 households in Panaji, Margao and Vasco. We then matched each household to the nearest weather station and computed the daily maximum temperature. A survey of 412 of these households recorded the number of air conditioners, the floor area and the household size. Our main model regresses daily consumption on temperature, with household fixed effects and controls for weekends and public holidays. GED reviewed the data-sharing agreement, and the university ethics committee approved the survey protocol.
