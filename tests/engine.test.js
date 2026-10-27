@@ -25,8 +25,8 @@ test('comma-splice detection: catch clear cases and leave reporting tags alone',
     'The report was late; it missed the deadline.');
   assert.equal(find('The report was late, it seems.', 'comma-splice').length, 0,
     'a short reporting tag is not a second independent clause');
-  assert.equal(find('The package contains books, they are on the shelf.', 'comma-splice').length, 0,
-    'do not flag a list followed by a separate sentence fragment pattern');
+  assert.equal(find('The package contains books, which are on the shelf.', 'comma-splice').length, 0,
+    'a relative clause after a comma is not a comma splice');
   assert.equal(find('"The report was late, it missed the deadline."', 'comma-splice').length, 0,
     'leave quoted text unchanged');
 });
