@@ -124,6 +124,12 @@ export function isNeitherNorSwap(text, fix) {
 export const DOC_VARIANT_RULES = new Set(['consistency-spelling', 'consistency-hyphen', 'consistency-case', 'consistency-percent', 'number-grouping', 'number-separator', 'date-format']);
 
 export function checkFix(text, fix, { remote = false, maxGrowth = 4, docVariant = false } = {}) {
+  // Central guardrail: every edit must be a well-formed span in the current text.
+  if (typeof text !== 'string' || !fix || typeof fix.text !== 'string'
+    || !Number.isSafeInteger(fix.start) || !Number.isSafeInteger(fix.end)
+    || fix.start < 0 || fix.end < fix.start || fix.end > text.length) {
+    return { ok: false, reason: 'invalid edit span' };
+  }
   const before = text.slice(fix.start, fix.end);
   const after = fix.text;
   const beforeTokens = tokens(before);
