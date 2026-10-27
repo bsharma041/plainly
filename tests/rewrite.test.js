@@ -33,6 +33,14 @@ test('passive without an actor offers "we" (if the writer uses it) and a placeho
   assert.deepEqual(active('The survey was conducted in 12 districts.'), ['Someone conducted the survey in 12 districts.']);
 });
 
+test('referential “it” allows a conservative active rewrite, but extraposed “it” stays protected', () => {
+  assert.deepEqual(active('It was written too quickly.', { weWriter: true, placeholder: '[who]' }), [
+    'We wrote it too quickly.',
+    '[who] wrote it too quickly.',
+  ]);
+  assert.deepEqual(active('It was decided that we leave.', { weWriter: true }), []);
+});
+
 test('passive shapes we refuse to touch', () => {
   for (const s of [
     'It was decided that we leave.',
