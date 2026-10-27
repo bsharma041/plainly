@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isApplicableFix } from '../src/engine/fix-span.js';
+import { runChecks, applyFix } from '../src/engine/index.js';
 
 test('accepts a valid word-level edit', () => {
   const text = 'The report are ready.';
@@ -33,4 +34,21 @@ test('rejects invalid, negative and out-of-document offsets', () => {
   assert.equal(isApplicableFix(text, suggestion, { start: 0, end: 99, text: 'B' }), false);
   assert.equal(isApplicableFix(text, suggestion, { start: 0.5, end: 1, text: 'B' }), false);
   assert.equal(isApplicableFix(text, suggestion, { start: 0, end: 1, text: null }), false);
+});
+
+
+test('accepts passive-to-active sentence rewrites only while the full source sentence is unchanged', () => {
+  const text = 'The report was written by the team.';
+  const suggestion = runChecks(text).find((s) => s.rule === 'passive');
+  assert.ok(suggestion, 'passive suggestion is available');
+  const fix = suggestion.fixes.find((f) => f.text === 'The team wrote the report.');
+  assert.ok(fix, 'active rewrite is offered');
+  assert.equal(isApplicableFix(text, suggestion, fix), true);
+  assert.equal(applyFix(text, fix), 'The team wrote the report.');
+
+  // The passive verb is unchanged, but another edit in the sentence makes the
+  // cached full-sentence preview stale and it must not overwrite the user's text.
+  const edited = 'The report was written by the team yesterday.';
+  assert.equal(isApplicableFix(edited, suggestion, fix), false);
+  assert.equal(isApplicableFix(text, suggestion, { ...fix, sourceText: undefined }), false);
 });
