@@ -20,6 +20,17 @@ test('a/an', () => {
   assert.equal(find('He was an unintended winner.', 'a-an').length, 0);
 });
 
+test('comma-splice detection: catch clear cases and leave reporting tags alone', () => {
+  assert.equal(fixOne('The report was late, it missed the deadline.', 'comma-splice'),
+    'The report was late; it missed the deadline.');
+  assert.equal(find('The report was late, it seems.', 'comma-splice').length, 0,
+    'a short reporting tag is not a second independent clause');
+  assert.equal(find('The package contains books, they are on the shelf.', 'comma-splice').length, 0,
+    'do not flag a list followed by a separate sentence fragment pattern');
+  assert.equal(find('"The report was late, it missed the deadline."', 'comma-splice').length, 0,
+    'leave quoted text unchanged');
+});
+
 test('agreement: "one of the ..." takes a singular verb', () => {
   assert.equal(fixOne('One of the reports are missing.', 'agreement'), 'One of the reports is missing.');
   assert.equal(fixOne('One of the children have arrived.', 'agreement'), 'One of the children has arrived.');
