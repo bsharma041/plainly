@@ -51,7 +51,7 @@ addAll(`I me we us he him she her they them it you someone whom who
   advise advice fewer monday tuesday wednesday thursday friday saturday sunday january february april june july september october november december
   english hindi french spanish german chinese japanese arabic bengali tamil telugu marathi gujarati urdu punjabi russian portuguese italian
   indian american british european african asian australian canadian
-  gone come run seen eaten written broken taken given begun chosen driven spoken stolen drunk swum rung sung flown grown known thrown drawn forgotten hidden ridden shaken woken frozen torn worn fallen become
+  gone come run seen eaten written broken taken given begun arisen risen blown sprung sworn withdrawn undergone chosen driven spoken stolen drunk swum rung sung flown grown known thrown drawn forgotten hidden ridden shaken woken frozen torn worn fallen become
   go see eat write take give make know get find think tell buy bring say leave feel keep begin break choose speak pay send spend build hear mean meet sell teach understand win hold stand sit
   were was has does doing`);
 
