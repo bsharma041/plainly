@@ -175,6 +175,6 @@ test('C7: 2,000 words p95 under 50 ms', () => {
     times.push(performance.now() - t0);
   }
   times.sort((a, b) => a - b);
-    const budget = process.env.CI ? 150 : 50;
+  const budget = process.env.CI ? 150 : 50;
   assert.ok(times[18] < budget, `p95 ${times[18].toFixed(1)} ms (budget ${budget} ms)`);
 });
