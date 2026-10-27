@@ -15,7 +15,7 @@ test('accepts a smaller fix inside an unchanged sentence-level suggestion', () =
 });
 
 test('rejects a stale suggestion after its source text changes', () => {
-  const text = 'The report is ready.';
+  const text = 'The report was ready.';
   const suggestion = { start: 0, end: 21, original: 'The report are ready.' };
   assert.equal(isApplicableFix(text, suggestion, { start: 11, end: 14, text: 'is' }), false);
 });
