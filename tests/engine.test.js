@@ -148,7 +148,7 @@ test('the complete sample passage surfaces its known usage and passive issues', 
     'I think there is an error in the second section of the report. The policy team wrote the report. To decide, we must have looked at many options.',
     'Our analysis shows the hard work of the team. It shows how the scheme has changed the way discos bill consumers. But the gains are uneven across regions and the rural divisions still lag behind on collection efficiency.',
     "He doesn't agree with the conclusion; it was written too quickly. However, we should organise a meeting to discuss it, and we can also organise a field visit. Mistakes were made. The data was essential.",
-  ].join('\\n\\n');
+  ].join(' ');
   const suggestions = runChecks(text);
   assert.ok(suggestions.some((s) => s.rule === 'purpose-modal-tense'));
   assert.ok(suggestions.some((s) => s.rule === 'lag-preposition'));
