@@ -29,11 +29,11 @@ test('grammar false positives', () => {
   assert.equal(hits('The ideas I have came from my team.', 'verb-form').length, 0);
   assert.equal(hits('She has went home.', 'verb-form').length, 1);
   const rose = 'The water has rose.';
-  assert.equal(applyFix(rose, { ...hits(rose, 'verb-form')[0], ...hits(rose, 'verb-form')[0].fixes[0] }), 'The water has risen.');
+  assert.equal(applyFix(rose, { start: hits(rose, 'verb-form')[0].start, end: hits(rose, 'verb-form')[0].end, text: typeof hits(rose, 'verb-form')[0].fixes[0] === 'string' ? hits(rose, 'verb-form')[0].fixes[0] : hits(rose, 'verb-form')[0].fixes[0].text }), 'The water has risen.');
   const blew = 'The wind has blew all day.';
-  assert.equal(applyFix(blew, { ...hits(blew, 'verb-form')[0], ...hits(blew, 'verb-form')[0].fixes[0] }), 'The wind has blown all day.');
+  assert.equal(applyFix(blew, { start: hits(blew, 'verb-form')[0].start, end: hits(blew, 'verb-form')[0].end, text: typeof hits(blew, 'verb-form')[0].fixes[0] === 'string' ? hits(blew, 'verb-form')[0].fixes[0] : hits(blew, 'verb-form')[0].fixes[0].text }), 'The wind has blown all day.');
   const arose = 'Prices have arose again.';
-  assert.equal(applyFix(arose, { ...hits(arose, 'verb-form')[0], ...hits(arose, 'verb-form')[0].fixes[0] }), 'Prices have arisen again.');
+  assert.equal(applyFix(arose, { start: hits(arose, 'verb-form')[0].start, end: hits(arose, 'verb-form')[0].end, text: typeof hits(arose, 'verb-form')[0].fixes[0] === 'string' ? hits(arose, 'verb-form')[0].fixes[0] : hits(arose, 'verb-form')[0].fixes[0].text }), 'Prices have arisen again.');
   assert.equal(hits('The water has risen.', 'verb-form').length, 0, 'do not flag a correct participle');
 
   assert.equal(hits('Will ran the meeting.', 'verb-form').length, 0);
