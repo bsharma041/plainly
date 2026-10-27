@@ -163,7 +163,7 @@ function passive(text, out, opts = {}) {
           : hasAgent
             ? 'This is passive voice. This sentence is too complex to rewrite safely; try starting with whoever did the action.'
             : 'This is passive voice. It\'s fine when the actor doesn\'t matter; otherwise say who did it.',
-      fixes: options.map((o) => ({ text: o.text, start: s.start, end: s.end, label: o.label, preview: o.text, select: o.select, ...(o.template ? { template: true } : {}) })),
+      fixes: options.map((o) => ({ text: o.text, start: s.start, end: s.end, label: o.label, preview: o.text, sourceText: s.text, select: o.select, ...(o.template ? { template: true } : {}) })),
     });
   }
 }
