@@ -29,11 +29,11 @@ test('grammar false positives', () => {
   assert.equal(hits('The ideas I have came from my team.', 'verb-form').length, 0);
   assert.equal(hits('She has went home.', 'verb-form').length, 1);
   const rose = 'The water has rose.';
-  assert.equal(applyFix(rose, hits(rose, 'verb-form')[0].fixes[0]), 'The water has risen.');
+  assert.equal(applyFix(rose, hits(rose, 'verb-form')[0]), 'The water has risen.');
   const blew = 'The wind has blew all day.';
-  assert.equal(applyFix(blew, hits(blew, 'verb-form')[0].fixes[0]), 'The wind has blown all day.');
+  assert.equal(applyFix(blew, hits(blew, 'verb-form')[0]), 'The wind has blown all day.');
   const arose = 'Prices have arose again.';
-  assert.equal(applyFix(arose, hits(arose, 'verb-form')[0].fixes[0]), 'Prices have arisen again.');
+  assert.equal(applyFix(arose, hits(arose, 'verb-form')[0]), 'Prices have arisen again.');
   assert.equal(hits('The water has risen.', 'verb-form').length, 0, 'do not flag a correct participle');
 
   assert.equal(hits('Will ran the meeting.', 'verb-form').length, 0);
