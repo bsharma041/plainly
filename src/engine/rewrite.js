@@ -120,7 +120,7 @@ function activeVerb(group, adverb, participle, agent) {
  * options (empty if the sentence isn't a shape we can rewrite safely).
  * `weWriter`: the document uses "we", so "we" is a fair guess for a missing actor.
  */
-export function passiveToActive(sentence, { weWriter = false, at = null, kind = null, placeholder = 'someone' } = {}) {
+export function passiveToActive(sentence, { weWriter = false, at = null, kind = null, placeholder = 'someone', capitalizeStart = true } = {}) {
   VERB_GROUP.lastIndex = 0;
   let vg;
   while ((vg = VERB_GROUP.exec(sentence))) {
@@ -225,7 +225,7 @@ export function passiveToActive(sentence, { weWriter = false, at = null, kind = 
     const known2 = Boolean(IRREGULAR_BASE[lp2]) || BASE_VERBS.has(baseForm(lp2));
     if (!known2 && !(agent && /ed$/.test(lp2) && !/^(in|dis|mis|non)/.test(lp2))) return [];
   }
-  const atStart = prefix === '';
+  const atStart = prefix === '' && capitalizeStart;
   const object = asObject(subject, atStart, kind);
   if (object == null) return [];
   const finish = (actor, label, select) => {
