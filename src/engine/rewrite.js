@@ -149,7 +149,9 @@ export function passiveToActive(sentence, { weWriter = false, at = null, kind = 
   if (conj) { prefix += conj[0]; subject = subject.slice(conj[0].length); }
   if (!subject || words(subject).length > 8) return [];
   if (/[,;:()"“”]/.test(subject) || /\b(which|who|that|because|when|if|but|where|whether)\b/i.test(subject)) return [];
-  if (OPENERS.test(subject) || /^\w+ly\b/.test(subject)) return [];
+  // A referential pronoun can be the real passive subject: “It was written too quickly” -> “we wrote it”.
+  // Dummy/extraposed “it” remains protected by the “that …” and unsafe infinitive checks below.
+  if ((OPENERS.test(subject) && !/^it$/i.test(subject)) || /^\w+ly\b/.test(subject)) return [];
   if (/\b(will|would|shall|should|can|could|may|might|must|has|have|had|is|are|was|were|be|been|do|does|did|not|never)\b/i.test(subject)) return [];
   if (/[?]\s*$/.test(sentence) || /^\s*(did|does|do|is|are|was|were|has|have|had|will|would|can|could|should)\b/i.test(sentence)) return []; // questions
   if (prefix && /\b(which|who|that)\s*,?\s*$/i.test(prefix)) return [];
