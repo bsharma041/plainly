@@ -20,6 +20,14 @@ test('a/an', () => {
   assert.equal(find('He was an unintended winner.', 'a-an').length, 0);
 });
 
+test('agreement: "one of the ..." takes a singular verb', () => {
+  assert.equal(fixOne('One of the reports are missing.', 'agreement'), 'One of the reports is missing.');
+  assert.equal(fixOne('One of the children have arrived.', 'agreement'), 'One of the children has arrived.');
+  assert.equal(fixOne('One of the teams were ready.', 'agreement'), 'One of the teams was ready.');
+  assert.equal(find('One of the series is popular.', 'agreement').filter((s) => s.original === 'is').length, 0);
+  assert.equal(find('"One of the reports are missing," she said.', 'agreement').filter((s) => s.original === 'are').length, 0);
+});
+
 test('repeated word', () => {
   assert.equal(fixOne('We saw the the report.', 'repeated-word'), 'We saw the report.');
   assert.equal(find('What he had had was enough.', 'repeated-word').length, 0);
