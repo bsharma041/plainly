@@ -873,7 +873,7 @@ function renderPerformance() {
   const cell = (v, label) => `<div class="perf-cell"><b>${escapeHtml(String(v))}</b><span>${escapeHtml(label)}</span></div>`;
   els.perfBody.innerHTML = `
     <div class="perf-top"><div class="perf-score">${score ?? '–'}</div>
-      <p>${score == null ? 'Write something to see your report.' : `Overall score for this document, based on ${state.suggestions.length} open suggestion${state.suggestions.length === 1 ? '' : 's'} across ${st.words.toLocaleString()} words.`}</p></div>
+      <p>${score == null ? 'Write something to see your report.' : `Rule-check score based on ${state.suggestions.length} open suggestion${state.suggestions.length === 1 ? '' : 's'} across ${st.words.toLocaleString()} words. It reflects only Plainly’s enabled checks, not every grammar, usage, or meaning issue.`}</p></div>
     <h3 class="perf-section">Word count</h3>
     <div class="perf-grid">
       ${cell(st.characters.toLocaleString(), 'Characters')}${cell(st.words.toLocaleString(), 'Words')}

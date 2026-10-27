@@ -118,6 +118,47 @@ test('passive voice: flag, and rewrite only the plain shape', () => {
   assert.equal(find('She is interested in maths.', 'passive').length, 0);
 });
 
+
+test('style rules surface conservative usage feedback from the screenshot examples', () => {
+  const lagText = 'The rural divisions still lag behind on collection efficiency.';
+  const lag = find(lagText, 'lag-preposition')[0];
+  assert.ok(lag, 'recognises the preposition choice after lag behind');
+  assert.equal(applyFix(lagText, lag.fixes[0]), 'The rural divisions still lag behind in collection efficiency.');
+  assert.equal(find('The team is lagging behind on payments.', 'lag-preposition').length, 0,
+    'do not flag the normal “lag behind on payments” construction');
+
+  const modalText = 'To decide, we must have looked at many options.';
+  const modal = find(modalText, 'purpose-modal-tense')[0];
+  assert.ok(modal, 'finds the purpose + must-have-past pattern');
+  assert.equal(applyFix(modalText, modal.fixes[0]), 'To decide, we must look at many options.');
+});
+
+test('passive after a semicolon gets an active alternative when the document uses we', () => {
+  const text = 'We reviewed the report, and we noted the conclusion; it was written too quickly.';
+  const s = find(text, 'passive').find((item) => item.original.toLowerCase() === 'was written');
+  assert.ok(s, 'passive clause is detected');
+  const fix = s.fixes.find((item) => item.text === 'we wrote it too quickly.');
+  assert.ok(fix, 'offers an active rewrite for the semicolon clause');
+  assert.equal(applyFix(text, fix), 'We reviewed the report, and we noted the conclusion; we wrote it too quickly.');
+});
+
+
+test('the complete sample passage surfaces its known usage and passive issues', () => {
+  const text = [
+    'I think there is an error in the second section of the report. The policy team wrote the report. To decide, we must have looked at many options.',
+    'Our analysis shows the hard work of the team. It shows how the scheme has changed the way discos bill consumers. But the gains are uneven across regions and the rural divisions still lag behind on collection efficiency.',
+    "He doesn't agree with the conclusion; it was written too quickly. However, we should organise a meeting to discuss it, and we can also organise a field visit. Mistakes were made. The data was essential.",
+  ].join(' ');
+  const suggestions = runChecks(text);
+  assert.ok(suggestions.some((s) => s.rule === 'purpose-modal-tense'));
+  assert.ok(suggestions.some((s) => s.rule === 'lag-preposition'));
+  const passive = suggestions.find((s) => s.rule === 'passive' && s.original.toLowerCase() === 'was written');
+  assert.ok(passive);
+  assert.ok(passive.fixes.some((f) => f.text === 'we wrote it too quickly.'));
+  assert.ok(overallScore(text, suggestions) < 100,
+    'the score should reflect the findings the configured rules actually make');
+});
+
 test('long sentences split at natural breaks without changing words', () => {
   const t = 'The discom improved billing in most urban divisions over the last three years, but collection in the rural divisions stayed flat because many meters were still faulty and readings were often estimated.';
   const s = find(t, 'long-sentence')[0];

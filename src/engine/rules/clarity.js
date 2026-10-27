@@ -1,5 +1,6 @@
 import { WORDY, REDUNDANCY, PLAIN_WORDS, ADJECTIVE_PARTICIPLES, NOT_PARTICIPLES, IRREGULAR } from '../data/lists.js';
 import { passiveToActive, splitSentence } from '../rewrite.js';
+import { baseForm } from '../morph.js';
 import { UN_VERBS } from '../data/usage-lists.js';
 import { matchCase, splitSentences, words, escapeRegex, isSentenceStart, capitalize } from '../text.js';
 
@@ -101,11 +102,80 @@ function longSentences(text, out, limit) {
 const BE = '(am|is|are|was|were|be|been|being|get|gets|got|gotten)';
 const PASSIVE_RE = new RegExp(`\\b${BE}\\s+(?:(\\w+ly)\\s+)?([A-Za-z]{3,}ed|${Object.keys(IRREGULAR).join('|')})\\b`, 'gi');
 
+
+const LAG_METRIC_RE = /\blag(?:s|ged|ging)?\s+behind\s+(on)\s+(?:(?:overall|collection|billing|service)\s+)?(collection efficiency|efficiency|performance|productivity|quality|coverage|accuracy|reliability|compliance|service delivery|billing efficiency|recovery efficiency)\b/gi;
+function lagMetricPreposition(text, out) {
+  LAG_METRIC_RE.lastIndex = 0;
+  let m;
+  while ((m = LAG_METRIC_RE.exec(text))) {
+    const start = m.index + m[0].indexOf(m[1]);
+    const end = start + m[1].length;
+    out.push({
+      rule: 'lag-preposition', category: CAT, severity: 'style', scope: 'word',
+      start, end, original: m[1],
+      title: 'Preposition after “lag behind”',
+      message: '“Lag behind” is a standard expression, not a redundancy. With a performance measure such as “collection efficiency”, “behind in” is often more idiomatic than “behind on”.',
+      fixes: [{ text: matchCase(m[1], 'in'), start, end, label: 'Use “in”' }],
+    });
+  }
+}
+
+const PURPOSE_VERBS = 'decide|choose|determine|assess|evaluate|compare|estimate|calculate|verify|confirm|judge|conclude|plan|solve';
+const PURPOSE_PERFECT_RE = new RegExp(
+  '\\b(To\\s+(?:' + PURPOSE_VERBS + ')\\s*,\\s*)(I|we|you|they|he|she|it)\\s+(must)\\s+have\\s+([A-Za-z]{3,}ed|' + Object.keys(IRREGULAR).join('|') + ')\\b',
+  'gi',
+);
+function purposePerfectModal(text, out) {
+  PURPOSE_PERFECT_RE.lastIndex = 0;
+  let m;
+  while ((m = PURPOSE_PERFECT_RE.exec(text))) {
+    const base = baseForm(m[4]);
+    if (!base || base === m[4].toLowerCase()) continue;
+    const phrase = m[3] + ' have ' + m[4];
+    const start = m.index + m[0].lastIndexOf(phrase);
+    const end = start + phrase.length;
+    const original = text.slice(start, end);
+    const replacement = matchCase(original, m[3] + ' ' + base);
+    out.push({
+      rule: 'purpose-modal-tense', category: CAT, severity: 'style', scope: 'word',
+      start, end, original,
+      title: 'Check modal tense',
+      message: '“Must have looked” usually draws a conclusion about a past action. If you mean that looking at options is required in order to decide, “must look” expresses that requirement more directly.',
+      fixes: [{ text: replacement, start, end, label: 'Use “' + replacement + '”' }],
+    });
+  }
+}
+
 const PRESENTATION = new Set(['shown', 'presented', 'given', 'listed', 'summarised', 'summarized', 'reported', 'illustrated', 'depicted']);
+
+
+function passiveSegments(text) {
+  const out = [];
+  for (const sentence of splitSentences(text)) {
+    let from = 0;
+    const semicolons = /;\s+/g;
+    const push = (lo, hi) => {
+      while (lo < hi && /\s/.test(sentence.text[lo])) lo++;
+      while (hi > lo && /\s/.test(sentence.text[hi - 1])) hi--;
+      if (hi > lo) out.push({
+        start: sentence.start + lo,
+        end: sentence.start + hi,
+        text: sentence.text.slice(lo, hi),
+      });
+    };
+    let m;
+    while ((m = semicolons.exec(sentence.text))) {
+      push(from, m.index + 1);
+      from = semicolons.lastIndex;
+    }
+    push(from, sentence.text.length);
+  }
+  return out;
+}
 
 function passive(text, out, opts = {}) {
   const academic = opts.domain === 'academic' || opts.domain === 'technical';
-  const sentences = splitSentences(text);
+  const sentences = passiveSegments(text);
   // The writer uses "we": two uses of we/our/us, or a sentence that starts with "We" (round 3, ruling P test).
   // A "We" inside quotation marks is someone else's voice and doesn't count (round 4, ruling 2).
   const unquoted = text.replace(/"[^"\n]*"|“[^”\n]*”/g, ' ');
@@ -138,7 +208,11 @@ function passive(text, out, opts = {}) {
     const placeholder = opts.passiveTemplate ? 'someone' : '[who]';
     // A one-word plural subject with a plural verb ("Mistakes were made.") is a common noun, not a name.
     const sentKind = (w) => kind(w) || (s && /^[A-Z][a-z]+[^s'’]s$/.test(w) && new RegExp(`^${w}\\s+(were|are|have\\s+been)\\b`).test(s.text) ? 'common' : null);
-    let options = s ? passiveToActive(s.text, { weWriter, at: start - s.start, kind: sentKind, placeholder }) : [];
+    const followsSemicolon = Boolean(s && /;\s*$/.test(text.slice(0, s.start)));
+    let options = s ? passiveToActive(s.text, {
+      weWriter, at: start - s.start, kind: sentKind, placeholder,
+      capitalizeStart: !followsSemicolon,
+    }) : [];
     // Round 4 (F4): presentation and citation passives ("The results are shown in Table 3.") have no
     // meaningful actor, so no "[who]" template. Advice and any "we"/agent rewrite stay.
     if (s) {
@@ -173,6 +247,8 @@ export function clarityRules(text, opts) {
   wordy(text, out);
   if (opts.plainWords !== false) plainWords(text, out);
   longSentences(text, out, opts.longSentence || 30);
+  lagMetricPreposition(text, out);
+  purposePerfectModal(text, out);
   passive(text, out, opts);
   return out;
 }
