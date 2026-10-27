@@ -25,6 +25,10 @@ test('agreement: "one of the ..." takes a singular verb', () => {
   assert.equal(fixOne('One of the children have arrived.', 'agreement'), 'One of the children has arrived.');
   assert.equal(fixOne('One of the teams were ready.', 'agreement'), 'One of the teams was ready.');
   assert.equal(find('One of the series is popular.', 'agreement').filter((s) => s.original === 'is').length, 0);
+  assert.equal(fixOne('One of the analysts are available.', 'agreement'), 'One of the analysts is available.');
+  assert.equal(fixOne('One of the users have reported it.', 'agreement'), 'One of the users has reported it.');
+  assert.equal(find('One of the reports that are missing was archived.', 'agreement').filter((s) => s.original === 'are').length, 0, 'preserve plural verb in a relative clause');
+  assert.equal(find('One of the reports is missing.', 'agreement').filter((s) => s.original === 'is').length, 0, 'leave correct agreement alone');
   assert.equal(find('"One of the reports are missing," she said.', 'agreement').filter((s) => s.original === 'are').length, 0);
 });
 

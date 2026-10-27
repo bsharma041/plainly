@@ -89,7 +89,7 @@ function agreement(text, out) {
 }
 
 // ---------- agreement with "one of the ..." ----------
-const ONE_OF_PLURALS = 'reports|items|people|children|students|employees|members|teams|companies|countries|villages|households|customers|problems|options|documents|files|examples|cases|books|cars|days|weeks|years|hours|words|mistakes|errors|questions|answers|results|figures|tables|records|products|services|rules|tests|changes|features|issues|concerns|projects|departments|committees|men|women';
+const ONE_OF_PLURALS = 'reports|items|people|children|students|employees|members|teams|companies|countries|villages|households|customers|problems|options|documents|files|examples|cases|books|cars|days|weeks|years|hours|words|mistakes|errors|questions|answers|results|figures|tables|records|products|services|rules|tests|changes|features|issues|concerns|projects|departments|committees|men|women|analysts|auditors|researchers|users|developers|managers|investors|shareholders|participants|applicants|candidates|suppliers|vendors|partners|schools|universities|cities|states';
 const ONE_OF_AGREEMENT = new RegExp(`\\b(one of the (?:${ONE_OF_PLURALS}))\\s+(are|were|have)\\b`, 'gi');
 
 function oneOfAgreement(text, out) {
