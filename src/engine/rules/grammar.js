@@ -99,7 +99,7 @@ function oneOfAgreement(text, out) {
     if (insideQuotes(text, m.index)) continue;
     const verb = m[2].toLowerCase();
     const fix = { are: 'is', were: 'was', have: 'has' }[verb];
-    const at = m.index + m[0].length - m[2].length;
+    const at = m.index + m[0].lastIndexOf(m[2]);
     out.push(make(
       'agreement', at, at + m[2].length, m[2], [matchCase(m[2], fix)],
       'Fix subject-verb agreement',
