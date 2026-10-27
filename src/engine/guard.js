@@ -51,7 +51,7 @@ addAll(`I me we us he him she her they them it you someone whom who
   advise advice fewer monday tuesday wednesday thursday friday saturday sunday january february april june july september october november december
   english hindi french spanish german chinese japanese arabic bengali tamil telugu marathi gujarati urdu punjabi russian portuguese italian
   indian american british european african asian australian canadian
-  gone come run seen eaten written broken taken given begun chosen driven spoken stolen drunk swum rung sung flown grown known thrown drawn forgotten hidden ridden shaken woken frozen torn worn fallen become
+  gone come run seen eaten written broken taken given begun arisen risen blown sprung sworn withdrawn undergone chosen driven spoken stolen drunk swum rung sung flown grown known thrown drawn forgotten hidden ridden shaken woken frozen torn worn fallen become
   go see eat write take give make know get find think tell buy bring say leave feel keep begin break choose speak pay send spend build hear mean meet sell teach understand win hold stand sit
   were was has does doing`);
 
@@ -124,6 +124,12 @@ export function isNeitherNorSwap(text, fix) {
 export const DOC_VARIANT_RULES = new Set(['consistency-spelling', 'consistency-hyphen', 'consistency-case', 'consistency-percent', 'number-grouping', 'number-separator', 'date-format']);
 
 export function checkFix(text, fix, { remote = false, maxGrowth = 4, docVariant = false } = {}) {
+  // Central guardrail: every edit must be a well-formed span in the current text.
+  if (typeof text !== 'string' || !fix || typeof fix.text !== 'string'
+    || !Number.isSafeInteger(fix.start) || !Number.isSafeInteger(fix.end)
+    || fix.start < 0 || fix.end < fix.start || fix.end > text.length) {
+    return { ok: false, reason: 'invalid edit span' };
+  }
   const before = text.slice(fix.start, fix.end);
   const after = fix.text;
   const beforeTokens = tokens(before);

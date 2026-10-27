@@ -20,6 +20,29 @@ test('a/an', () => {
   assert.equal(find('He was an unintended winner.', 'a-an').length, 0);
 });
 
+test('comma-splice detection: catch clear cases and leave reporting tags alone', () => {
+  assert.equal(fixOne('The report was late, it missed the deadline.', 'comma-splice'),
+    'The report was late; it missed the deadline.');
+  assert.equal(find('The report was late, it seems.', 'comma-splice').length, 0,
+    'a short reporting tag is not a second independent clause');
+  assert.equal(find('The package contains books, which are on the shelf.', 'comma-splice').length, 0,
+    'a relative clause after a comma is not a comma splice');
+  assert.equal(find('"The report was late, it missed the deadline."', 'comma-splice').length, 0,
+    'leave quoted text unchanged');
+});
+
+test('agreement: "one of the ..." takes a singular verb', () => {
+  assert.equal(fixOne('One of the reports are missing.', 'agreement'), 'One of the reports is missing.');
+  assert.equal(fixOne('One of the children have arrived.', 'agreement'), 'One of the children has arrived.');
+  assert.equal(fixOne('One of the teams were ready.', 'agreement'), 'One of the teams was ready.');
+  assert.equal(find('One of the series is popular.', 'agreement').filter((s) => s.original === 'is').length, 0);
+  assert.equal(fixOne('One of the analysts are available.', 'agreement'), 'One of the analysts is available.');
+  assert.equal(fixOne('One of the users have reported it.', 'agreement'), 'One of the users has reported it.');
+  assert.equal(find('One of the reports that are missing was archived.', 'agreement').filter((s) => s.original === 'are').length, 0, 'preserve plural verb in a relative clause');
+  assert.equal(find('One of the reports is missing.', 'agreement').filter((s) => s.original === 'is').length, 0, 'leave correct agreement alone');
+  assert.equal(find('"One of the reports are missing," she said.', 'agreement').filter((s) => s.original === 'are').length, 0);
+});
+
 test('repeated word', () => {
   assert.equal(fixOne('We saw the the report.', 'repeated-word'), 'We saw the report.');
   assert.equal(find('What he had had was enough.', 'repeated-word').length, 0);

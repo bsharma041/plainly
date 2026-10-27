@@ -7,6 +7,7 @@ import { checkWithLanguageTool } from './services/languagetool.js';
 import { synonymsFor } from './services/synonyms.js';
 import { importDocx, exportDocx } from './services/docx.js';
 import { renderMirror, autosize, placePopover, escapeHtml } from './editor.js';
+import { isApplicableFix } from './engine/fix-span.js';
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -647,8 +648,7 @@ function replaceRange(start, end, text) {
 function applySuggestionFix(id, index) {
   const s = state.suggestions.find((x) => x.id === id);
   const fix = s?.fixes[index];
-  if (!fix) return;
-  if (state.text.slice(s.start, s.end) !== s.original) return; // stale
+  if (!s || !isApplicableFix(state.text, s, fix)) return; // reject stale or out-of-range spans
   hidePopover();
   state.activeId = null;
   state.openCardId = null;
@@ -664,7 +664,10 @@ function fixAll() {
   const list = bulkFixes();
   if (!list.length) return;
   let text = state.text;
-  const edits = list.map((s) => s.fixes[0]).sort((a, b) => b.start - a.start);
+  const edits = list
+    .filter((s) => isApplicableFix(state.text, s, s.fixes[0]))
+    .map((s) => s.fixes[0])
+    .sort((a, b) => b.start - a.start);
   let lastStart = Infinity;
   let applied = 0;
   for (const f of edits) {
