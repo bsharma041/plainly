@@ -142,6 +142,23 @@ test('passive after a semicolon gets an active alternative when the document use
   assert.equal(applyFix(text, fix), 'We reviewed the report, and we noted the conclusion; we wrote it too quickly.');
 });
 
+
+test('the complete sample passage surfaces its known usage and passive issues', () => {
+  const text = [
+    'I think there is an error in the second section of the report. The policy team wrote the report. To decide, we must have looked at many options.',
+    'Our analysis shows the hard work of the team. It shows how the scheme has changed the way discos bill consumers. But the gains are uneven across regions and the rural divisions still lag behind on collection efficiency.',
+    "He doesn't agree with the conclusion; it was written too quickly. However, we should organise a meeting to discuss it, and we can also organise a field visit. Mistakes were made. The data was essential.",
+  ].join('\\n\\n');
+  const suggestions = runChecks(text);
+  assert.ok(suggestions.some((s) => s.rule === 'purpose-modal-tense'));
+  assert.ok(suggestions.some((s) => s.rule === 'lag-preposition'));
+  const passive = suggestions.find((s) => s.rule === 'passive' && s.original.toLowerCase() === 'was written');
+  assert.ok(passive);
+  assert.ok(passive.fixes.some((f) => f.text === 'we wrote it too quickly.'));
+  assert.ok(overallScore(text, suggestions) < 100,
+    'the score should reflect the findings the configured rules actually make');
+});
+
 test('long sentences split at natural breaks without changing words', () => {
   const t = 'The discom improved billing in most urban divisions over the last three years, but collection in the rural divisions stayed flat because many meters were still faulty and readings were often estimated.';
   const s = find(t, 'long-sentence')[0];
