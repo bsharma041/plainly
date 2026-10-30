@@ -191,6 +191,8 @@ export const RULE_INFO = {
   'plain-word': { name: 'Plain word', explanation: 'A plainer word means the same here.', example: { wrong: 'utilise', right: 'use' } },
   'long-sentence': { name: 'Long sentence', explanation: 'Readers lose track in very long sentences.', example: { wrong: 'One 50-word sentence', right: 'Two sentences of 25 words' } },
   passive: { name: 'Passive voice', explanation: 'Active voice names the actor first.', example: { wrong: 'The report was written by the team.', right: 'The team wrote the report.' } },
+  'lag-preposition': { name: 'Preposition after “lag behind”', explanation: '“Lag behind” is a standard expression. With performance measures, “behind in” is often more idiomatic than “behind on”.', example: { wrong: 'lag behind on collection efficiency', right: 'lag behind in collection efficiency' } },
+  'purpose-modal-tense': { name: 'Check modal tense', explanation: '“Must have looked” often expresses a conclusion about a past event; “must look” expresses a requirement.', example: { wrong: 'To decide, we must have looked at options.', right: 'To decide, we must look at options.' } },
   repetition: { name: 'Repetition', explanation: 'The same word several times in a few lines can feel flat.', example: { wrong: 'cost … cost … cost', right: 'cost … price … cost' } },
   intensifier: { name: 'Weak intensifier', explanation: 'One precise word can replace "very" + adjective.', example: { wrong: 'very tired', right: 'exhausted' } },
   'ai-phrase': { name: 'AI-sounding phrase', explanation: 'Stock phrases common in AI text weaken your voice.', example: { wrong: 'serves as a reminder', right: 'is a reminder' } },

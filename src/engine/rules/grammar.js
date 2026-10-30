@@ -88,8 +88,28 @@ function agreement(text, out) {
   }
 }
 
+// ---------- agreement with "one of the ..." ----------
+const ONE_OF_PLURALS = 'reports|items|people|children|students|employees|members|teams|companies|countries|villages|households|customers|problems|options|documents|files|examples|cases|books|cars|days|weeks|years|hours|words|mistakes|errors|questions|answers|results|figures|tables|records|products|services|rules|tests|changes|features|issues|concerns|projects|departments|committees|men|women|analysts|auditors|researchers|users|developers|managers|investors|shareholders|participants|applicants|candidates|suppliers|vendors|partners|schools|universities|cities|states';
+const ONE_OF_AGREEMENT = new RegExp(`\\b(one of the (?:${ONE_OF_PLURALS}))\\s+(are|were|have)\\b`, 'gi');
+
+function oneOfAgreement(text, out) {
+  ONE_OF_AGREEMENT.lastIndex = 0;
+  let m;
+  while ((m = ONE_OF_AGREEMENT.exec(text))) {
+    if (insideQuotes(text, m.index)) continue;
+    const verb = m[2].toLowerCase();
+    const fix = { are: 'is', were: 'was', have: 'has' }[verb];
+    const at = m.index + m[0].lastIndexOf(m[2]);
+    out.push(make(
+      'agreement', at, at + m[2].length, m[2], [matchCase(m[2], fix)],
+      'Fix subject-verb agreement',
+      'In this construction, "one" is the subject, so it takes a singular verb.'
+    ));
+  }
+}
+
 // ---------- verb forms ----------
-const PAST_TO_PARTICIPLE = { went: 'gone', came: 'come', ran: 'run', saw: 'seen', did: 'done', ate: 'eaten', wrote: 'written', broke: 'broken', took: 'taken', gave: 'given', began: 'begun', chose: 'chosen', drove: 'driven', spoke: 'spoken', stole: 'stolen', drank: 'drunk', swam: 'swum', rang: 'rung', sang: 'sung', flew: 'flown', grew: 'grown', knew: 'known', threw: 'thrown', drew: 'drawn', forgot: 'forgotten', hid: 'hidden', rode: 'ridden', shook: 'shaken', woke: 'woken', froze: 'frozen', tore: 'torn', wore: 'worn', fell: 'fallen', became: 'become' };
+const PAST_TO_PARTICIPLE = { went: 'gone', came: 'come', ran: 'run', saw: 'seen', did: 'done', ate: 'eaten', wrote: 'written', broke: 'broken', took: 'taken', gave: 'given', began: 'begun', arose: 'arisen', rose: 'risen', blew: 'blown', sprang: 'sprung', swore: 'sworn', withdrew: 'withdrawn', underwent: 'undergone', chose: 'chosen', drove: 'driven', spoke: 'spoken', stole: 'stolen', drank: 'drunk', swam: 'swum', rang: 'rung', sang: 'sung', flew: 'flown', grew: 'grown', knew: 'known', threw: 'thrown', drew: 'drawn', forgot: 'forgotten', hid: 'hidden', rode: 'ridden', shook: 'shaken', woke: 'woken', froze: 'frozen', tore: 'torn', wore: 'worn', fell: 'fallen', became: 'become' };
 const PAST_TO_BASE = { went: 'go', came: 'come', ran: 'run', saw: 'see', did: 'do', ate: 'eat', wrote: 'write', took: 'take', gave: 'give', made: 'make', knew: 'know', got: 'get', found: 'find', thought: 'think', told: 'tell', bought: 'buy', brought: 'bring', said: 'say', left: 'leave', felt: 'feel', kept: 'keep', began: 'begin', broke: 'break', chose: 'choose', spoke: 'speak', paid: 'pay', sent: 'send', spent: 'spend', built: 'build', heard: 'hear', meant: 'mean', met: 'meet', sold: 'sell', taught: 'teach', understood: 'understand', won: 'win', lost: 'lose', held: 'hold', stood: 'stand', sat: 'sit' };
 
 function verbForms(text, out) {
@@ -200,6 +220,7 @@ export function grammarRules(text) {
   const out = [];
   commaSplices(text, out);
   agreement(text, out);
+  oneOfAgreement(text, out);
   verbForms(text, out);
   comparatives(text, out);
   capitals(text, out);

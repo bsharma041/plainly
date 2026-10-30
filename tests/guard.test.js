@@ -58,3 +58,18 @@ test('every fix produced on realistic text passes the guard', () => {
   }
   assert.ok(checked > 30, `checked ${checked} fixes`);
 });
+
+
+test('checkFix rejects invalid edit spans before inspecting or applying them', () => {
+  const text = 'A short sentence.';
+  for (const fix of [
+    { start: -1, end: 1, text: 'B' },
+    { start: 0, end: text.length + 1, text: 'B' },
+    { start: 1.5, end: 2, text: 'B' },
+    { start: 3, end: 2, text: 'B' },
+    { start: 0, end: 1, text: null },
+  ]) {
+    assert.equal(checkFix(text, fix).ok, false);
+    assert.equal(checkFix(text, fix).reason, 'invalid edit span');
+  }
+});
