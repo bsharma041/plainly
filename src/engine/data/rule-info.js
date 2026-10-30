@@ -194,6 +194,20 @@ export const RULE_INFO = {
   repetition: { name: 'Repetition', explanation: 'The same word several times in a few lines can feel flat.', example: { wrong: 'cost … cost … cost', right: 'cost … price … cost' } },
   intensifier: { name: 'Weak intensifier', explanation: 'One precise word can replace "very" + adjective.', example: { wrong: 'very tired', right: 'exhausted' } },
   'ai-phrase': { name: 'AI-sounding phrase', explanation: 'Stock phrases common in AI text weaken your voice.', example: { wrong: 'serves as a reminder', right: 'is a reminder' } },
+  // Round 9 (Grok audit): new rules only
+  'dangling-modifier': { name: 'Dangling modifier', explanation: 'An opening "-ing" phrase describes whoever comes right after the comma. If no doer comes next, the sentence says the wrong thing did it.', example: { wrong: 'Having reviewed the data, the decision was made.', right: 'Having reviewed the data, we made the decision.' } },
+  'fused-sentence': { name: 'Run-on sentence', explanation: 'Two complete sentences need a full stop, a semicolon or a joining word between them.', example: { wrong: 'The meeting ended early we went home.', right: 'The meeting ended early. We went home.' } },
+  'who-whom': { name: 'Who or whom', explanation: '"Who" does the action; "whom" receives it or follows a preposition.', example: { wrong: 'the officer whom is in charge', right: 'the officer who is in charge' } },
+  subjunctive: { name: 'Unreal "were"', explanation: 'For a situation that is not true, standard English uses "were" with every subject.', example: { wrong: 'If I was you, I would wait.', right: 'If I were you, I would wait.' } },
+  'much-many': { name: 'Much or many', explanation: '"Many" goes with things you can count; "much" with things you can\'t.', example: { wrong: 'much people, many information', right: 'many people, much information' } },
+  'that-which': { name: 'That or which', explanation: 'In American English, a clause that identifies the noun takes "that"; a clause that only adds detail takes ", which".', example: { wrong: 'The report which was late is long.', right: 'The report that was late is long.' } },
+  'not-only': { name: 'Correlative pair', explanation: '"Not only" pairs with "but also".', example: { wrong: 'not only cheap and also fast', right: 'not only cheap but also fast' } },
+  'register-office': { name: 'Office register', explanation: 'Some office phrases common in Indian English read oddly to readers elsewhere. A plain standard word works everywhere.', example: { wrong: 'Please intimate us of the date.', right: 'Please inform us of the date.' } },
+  'with-clause': { name: 'Long sentence', explanation: 'A ", with …" phrase at the end of a long sentence usually carries a second idea that reads better on its own.', example: { wrong: '…in the districts, with most plants located in the north.', right: '…in the districts. Most plants are in the north.' } },
+  'data-number': { name: '"Data" singular or plural', explanation: 'Treat "data" one way throughout a document.', example: { wrong: 'The data is clear … the data show', right: 'The data are clear … the data show' } },
+  'acronym-unused': { name: 'Unused acronym', explanation: 'An acronym defined once and never used again is extra load for the reader.', example: { wrong: 'Time of Day (ToD) tariffs … (ToD never used again)', right: 'Time of Day tariffs …' } },
+  'paragraph-rhythm': { name: 'Sentence rhythm', explanation: 'A paragraph of equal-length sentences reads flat. Varying the length helps key points stand out.', example: { wrong: 'Four sentences of 16–18 words each', right: 'Long, long, short' } },
+  'paragraph-one-sentence': { name: 'Long one-sentence paragraph', explanation: 'A whole paragraph in one long sentence gives the reader no pause.', example: { wrong: 'One 50-word sentence as a paragraph', right: 'Two or three sentences' } },
 };
 
 export function ruleInfo(rule) {

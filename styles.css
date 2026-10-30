@@ -119,6 +119,26 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .switch input:checked + .switch-track::after { transform: translateX(14px); }
 .switch input:focus-visible + .switch-track { outline: 2px solid var(--focus); outline-offset: 2px; }
 
+/* Round 9: margin markers, keyboard hint, paragraph table */
+.gutter { position: absolute; top: 0; bottom: 0; left: -26px; width: 18px; }
+.gutter-mark {
+  position: absolute; left: 0; width: 18px; height: 18px; margin-top: 6px; padding: 0; border: 0; border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 18%, transparent); box-shadow: inset 0 0 0 2px var(--c);
+  color: var(--c); font: 700 10px/18px var(--font-ui, system-ui); text-align: center; cursor: pointer;
+}
+.gutter-mark.sev-style { box-shadow: inset 0 0 0 1.5px var(--c); background: transparent; }
+.gutter-mark:hover, .gutter-mark:focus-visible { background: var(--c); color: var(--bg, #fff); outline: none; }
+.kbd-hint { margin: 10px 4px 4px; font-size: 12px; color: var(--text-3); }
+.kbd-hint kbd { font: inherit; font-size: 11px; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface, transparent); }
+.para-table { display: grid; gap: 2px; margin-bottom: 16px; }
+.para-row { display: grid; grid-template-columns: minmax(0, 1fr) 56px 72px 96px 92px; gap: 8px; align-items: baseline; padding: 8px 10px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.para-row:hover, .para-row:focus-visible { background: var(--surface-2); outline: none; }
+.para-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.para-row em { display: block; font-style: normal; font-size: 12px; color: var(--clarity); white-space: normal; }
+.para-head { cursor: default; font-weight: 600; color: var(--text-2, var(--text)); }
+.para-head:hover { background: transparent; }
+
 /* Layout */
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
 .doc { overflow-y: auto; min-height: 0; }
@@ -298,6 +318,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .panel, .doc { min-width: 0; }
   .doc { overflow: visible; }
   .doc-inner { padding: 24px 16px 40px; }
+  .gutter, .kbd-hint { display: none; }
   .panel { border-left: 0; border-top: 1px solid var(--border); }
   .cards { overflow: visible; }
   #btn-perf { display: none; }

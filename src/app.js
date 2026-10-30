@@ -1,7 +1,7 @@
 import {
   runChecks, mergeSuggestions, suggestionKey, guardSuggestion, remap, stats, overallScore, readabilityLabel,
   detectDialect, detectTone, TONE_INFO, DEFAULT_OPTIONS, sentenceGroups, composeSentence, RULE_INFO, isBulkSafe,
-  runGuidance, composeFixes, GUIDANCE_GROUPS,
+  runGuidance, composeFixes, GUIDANCE_GROUPS, paragraphStats,
 } from './engine/index.js';
 import { checkWithLanguageTool } from './services/languagetool.js';
 import { synonymsFor } from './services/synonyms.js';
@@ -235,8 +235,51 @@ function recompute() {
 function render() {
   renderMirror(els.mirror, state.text, state.suggestions, { activeId: state.activeId, anchor: state.synonymAnchor, highlights: guideHighlights() });
   renderCards();
+  renderGutter();
   renderScore();
   renderStats();
+}
+
+// ---------- round 9: margin markers ----------
+const SEV_ORDER = { critical: 0, advanced: 1, style: 2 };
+function renderGutter() {
+  const gutter = $('gutter');
+  if (!gutter) return;
+  const rows = new Map();
+  for (const s of visibleList()) {
+    if (s.scope === 'sentence') continue;
+    const mark = els.mirror.querySelector(`[data-id="${CSS.escape(s.id)}"]`);
+    if (!mark) continue;
+    const top = Math.round(mark.offsetTop);
+    const row = rows.get(top) || { top, items: [] };
+    row.items.push(s);
+    rows.set(top, row);
+  }
+  gutter.innerHTML = [...rows.values()].map((r) => {
+    const lead = [...r.items].sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity])[0];
+    const n = r.items.length;
+    const label = `${n} suggestion${n === 1 ? '' : 's'} on this line: ${r.items.map((x) => x.ruleName || x.title).join(', ')}`;
+    return `<button type="button" class="gutter-mark c-${lead.category} sev-${escapeHtml(lead.severity || 'advanced')}" style="top:${r.top}px; --c: var(--${lead.category})"
+      data-act="open" data-id="${escapeHtml(lead.id)}" tabindex="-1" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${n > 1 ? n : ''}</button>`;
+  }).join('');
+}
+
+// ---------- round 9: keyboard walk through the cards ----------
+function stepCard(dir) {
+  const list = visibleList();
+  if (!list.length) return;
+  let i = list.findIndex((s) => s.id === state.openCardId);
+  // After an accept or dismiss the open card is gone: carry on from where it was, not from the top.
+  if (i < 0 && state.walkPos != null) i = Math.min(state.walkPos, list.length) - (dir > 0 ? 1 : 0);
+  i = i < 0 && state.walkPos == null ? (dir > 0 ? 0 : list.length - 1) : (i + dir + list.length) % list.length;
+  state.walkPos = i;
+  const s = list[i];
+  state.openCardId = s.id;
+  state.activeId = s.id;
+  hidePopover();
+  render();
+  els.cards.querySelector(`[data-id="${CSS.escape(s.id)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  els.mirror.querySelector(`[data-id="${CSS.escape(s.id)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 const truncate = (s, n) => { const t = s.replace(/\s+/g, ' '); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
@@ -488,6 +531,13 @@ function bulkFixes() {
   return state.suggestions.filter(isBulkSafe);
 }
 
+/** The cards the current tab shows, in order. */
+function visibleList() {
+  if (state.filter === 'guidance') return [];
+  return state.suggestions.filter((s) => (state.filter === 'all' || s.category === state.filter)
+    && (!state.criticalOnly || s.severity === 'critical'));
+}
+
 function renderCards() {
   const counts = { all: 0, correctness: 0, clarity: 0, engagement: 0, voice: 0, guidance: visibleGuidance().length };
   for (const s of state.suggestions) { counts.all++; counts[s.category]++; }
@@ -501,8 +551,7 @@ function renderCards() {
   els.fixAll.textContent = `Accept all ${bulk.length} correctness fixes`;
 
   if (state.filter === 'guidance') { renderGuidance(); return; }
-  const list = state.suggestions.filter((s) => (state.filter === 'all' || s.category === state.filter)
-    && (!state.criticalOnly || s.severity === 'critical'));
+  const list = visibleList();
   const crit = $('btn-critical');
   if (crit) { crit.classList.toggle('is-on', state.criticalOnly); crit.setAttribute('aria-pressed', String(state.criticalOnly)); }
   // The "{n} fixes in this sentence" chip goes on the first card of each sentence that has a preview.
@@ -887,7 +936,31 @@ function renderPerformance() {
     <h3 class="perf-section">Vocabulary</h3>
     <div class="perf-grid">${cell(`${st.uniquePct}%`, 'Unique words')}${cell(`${st.longWordPct}%`, 'Long words (3+ syllables)')}</div>
     <h3 class="perf-section">Open suggestions</h3>
-    <div class="perf-cats">${Object.entries(counts).map(([k, v]) => cell(v, CATEGORY_LABEL[k])).join('')}</div>`;
+    <div class="perf-cats">${Object.entries(counts).map(([k, v]) => cell(v, CATEGORY_LABEL[k])).join('')}</div>
+    ${paragraphTable()}`;
+}
+
+// Round 9: per-paragraph view. Click a row to jump to that paragraph.
+function paragraphTable() {
+  const rows = paragraphStats(state.text).filter((p) => p.words >= 5);
+  if (rows.length < 2) return '';
+  const limit = state.settings.longSentence || 30;
+  const flag = (p) => {
+    const notes = [];
+    if (p.longest > limit) notes.push(`a ${p.longest}-word sentence`);
+    if (p.sentences >= 4 && p.spread <= 4 && p.avgSentence >= 14) notes.push('same-length sentences');
+    if (p.words > 180) notes.push('long paragraph');
+    return notes.join(', ');
+  };
+  return `<h3 class="perf-section">Paragraphs</h3>
+    <div class="para-table">
+      <div class="para-row para-head" aria-hidden="true"><span>Paragraph</span><span>Words</span><span>Sentences</span><span>Avg / longest</span><span>Readability</span></div>
+      ${rows.map((p, i) => `<button type="button" class="para-row" data-pjump="${p.start}" data-pend="${p.end}"
+        aria-label="${escapeHtml(`Paragraph ${i + 1}: ${p.words} words, ${p.sentences} sentences, average ${p.avgSentence} and longest ${p.longest} words, ${p.label || 'no readability score'}${flag(p) ? `; ${flag(p)}` : ''}. Jump to it.`)}">
+        <span><b>${i + 1}.</b> ${escapeHtml(p.preview)}…${flag(p) ? `<em>${escapeHtml(flag(p))}</em>` : ''}</span>
+        <span>${p.words}</span><span>${p.sentences}</span><span>${p.avgSentence} / ${p.longest}</span>
+        <span>${escapeHtml(p.label || '–')}</span></button>`).join('')}
+    </div>`;
 }
 
 // ---------- events ----------
@@ -924,7 +997,20 @@ els.input.addEventListener('dblclick', () => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !els.popover.hidden) { e.preventDefault(); hidePopover(); }
+  // Round 9: Alt+J / Alt+K next and previous card, Alt+Enter accept its first fix, Alt+Backspace dismiss.
+  // Nothing changes the text without the writer pressing a key for that one card.
+  if (!e.altKey || e.ctrlKey || e.metaKey || $('editor-view').hidden || document.querySelector('dialog[open]')) return;
+  if (e.code === 'KeyJ' || e.code === 'KeyK') { e.preventDefault(); stepCard(e.code === 'KeyJ' ? 1 : -1); return; }
+  const open = state.suggestions.find((x) => x.id === state.openCardId);
+  if (!open) return;
+  // Alt/Option+Backspace deletes a word in the editor (macOS), so dismiss works only outside the textarea.
+  if (e.code === 'Enter' && open.fixes.length) { e.preventDefault(); applySuggestionFix(open.id, 0); }
+  else if (e.code === 'Backspace' && document.activeElement !== els.input) { e.preventDefault(); dismiss(open.id); }
 });
+if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
+  for (const k of document.querySelectorAll('.kbd-hint kbd')) if (k.textContent === 'Alt') k.textContent = '⌥';
+}
+window.addEventListener('resize', () => { if (!$('editor-view').hidden) renderGutter(); });
 document.addEventListener('mousedown', (e) => {
   if (!els.popover.hidden && !els.popover.contains(e.target) && e.target !== els.input) hidePopover();
   const menu = document.querySelector('details.menu[open]');
@@ -959,6 +1045,7 @@ function handleAction(e) {
     hidePopover();
     replaceRange(anchor.start, anchor.end, w);
   } else if (act === 'open') {
+    state.walkPos = Math.max(0, visibleList().findIndex((x) => x.id === id));
     state.openCardId = state.openCardId === id ? null : id;
     state.activeId = state.openCardId;
     hidePopover();
@@ -968,6 +1055,7 @@ function handleAction(e) {
   }
 }
 els.cards.addEventListener('click', handleAction);
+$('gutter')?.addEventListener('click', handleAction);
 els.popover.addEventListener('click', handleAction);
 els.popover.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
 
@@ -1073,6 +1161,35 @@ $('goals-reset').addEventListener('click', () => { setGoal({ ...DEFAULT_GOALS })
 
 // Performance
 const openPerf = () => { renderPerformance(); els.perf.showModal(); };
+els.perfBody.addEventListener('click', (e) => {
+  const row = e.target.closest('[data-pjump]');
+  if (!row) return;
+  els.perf.close();
+  const start = Number(row.dataset.pjump), end = Number(row.dataset.pend);
+  els.input.focus({ preventScroll: true });
+  els.input.setSelectionRange(start, end);
+  scrollToOffset(start);
+});
+
+/** Scroll the document so the character at `pos` is in view (the mirror holds the same text as the textarea). */
+function scrollToOffset(pos) {
+  const walker = document.createTreeWalker(els.mirror, NodeFilter.SHOW_TEXT);
+  let seen = 0;
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (seen + n.length > pos) {
+      const r = document.createRange();
+      r.setStart(n, pos - seen);
+      r.setEnd(n, Math.min(n.length, pos - seen + 1));
+      const box = r.getBoundingClientRect();
+      const doc = $('doc');
+      const target = box.top - doc.getBoundingClientRect().top + doc.scrollTop - doc.clientHeight / 3;
+      if (doc.scrollHeight > doc.clientHeight) doc.scrollTo({ top: target, behavior: 'smooth' });
+      else window.scrollTo({ top: box.top + window.scrollY - window.innerHeight / 3, behavior: 'smooth' });
+      return;
+    }
+    seen += n.length;
+  }
+}
 $('btn-perf').addEventListener('click', openPerf);
 els.statWords.addEventListener('click', openPerf);
 

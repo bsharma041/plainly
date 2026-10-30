@@ -98,7 +98,7 @@ test('F5: goa-abstract gets exactly one guidance finding, study-tense', () => {
 // ---------- F1: no regressions on the abstract ----------
 test('F1: goa-abstract inline cards unchanged', () => {
   assert.deepEqual(runChecks(GOA).map((s) => [s.rule, s.fixes[0]?.text ?? null]), [
-    ['title-case', 'power'], ['compound-subject', 'are'], ['plain-word', 'shows'], ['long-sentence', null], ['serial-comma', 'ecosystem, and'],
+    ['title-case', 'power'], ['compound-subject', 'are'], ['plain-word', 'shows'], ['long-sentence', '. Thermal power comprises'], ['serial-comma', 'ecosystem, and'], // round 9: ', with' split (round-8 backlog)
     ['article-idiom', 'the'], ['long-sentence', null], ['both-and', 'both centralised and decentralised approaches'], ['long-sentence', null],
     ['wordy-purpose', 'aims to identify'], ['vague-phrase', null], ['preposition', 'suitable for'], ['list-parallel', 'able to support'],
     ['nominalisation', 'how to decarbonise']]);

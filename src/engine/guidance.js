@@ -3,6 +3,7 @@
 // Mechanical findings (consistency, numbers, redefined acronyms, missing full
 // stops) are also emitted as inline cards by runChecks.
 import { analyseDocument } from './rules/document.js';
+import { analyseDocument2 } from './rules/document2.js';
 import { checkFix, DOC_VARIANT_RULES } from './guard.js';
 
 export const GUIDANCE_GROUPS = ['consistency', 'acronyms', 'numbers', 'evidence', 'structure', 'tense', 'keywords'];
@@ -13,7 +14,7 @@ export const GUIDANCE_GROUPS = ['consistency', 'acronyms', 'numbers', 'evidence'
  * @returns {Array} findings: { rule, group, level, title, message, start, end, original, instances: [{start,end,original,fixes}] }
  */
 export function runGuidance(text, opts = {}) {
-  const { findings } = analyseDocument(text, opts);
+  const findings = [...analyseDocument(text, opts).findings, ...analyseDocument2(text, opts).findings];
   const off = new Set(opts.disabledRules || []);
   return findings
     .filter((f) => !off.has(f.rule))

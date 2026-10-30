@@ -15,6 +15,7 @@ import { USAGE_INSERTS, NOMINALISATIONS, NOMINALISATIONS_US } from './data/usage
 import { neitherPairsWithOr } from './neither.js';
 import { LIGHT_VERB_INSERTS } from './data/document-lists.js';
 import { REGISTER_INSERTS } from './rules/usage3.js';
+import { ROUND9_INSERTS } from './rules/syllabus.js';
 import { words } from './text.js';
 
 const lower = (s) => s.toLowerCase().replace(/[’]/g, "'");
@@ -37,6 +38,7 @@ for (const c of CONFUSIONS) addAll(c.title);
 addAll(USAGE_INSERTS);
 addAll(LIGHT_VERB_INSERTS); // round 6 (B3)
 addAll(REGISTER_INSERTS); // round 6 (IE1, P1)
+addAll(ROUND9_INSERTS); // round 9 (rules/syllabus.js)
 Object.values(NOMINALISATIONS).flat().forEach(addAll);
 Object.values(NOMINALISATIONS_US).flat().forEach(addAll);
 addAll(`I me we us he him she her they them it you someone whom who

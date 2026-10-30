@@ -8,6 +8,8 @@ import { usageRules } from './rules/usage.js';
 import { usageRules2 } from './rules/usage2.js';
 import { analyseDocument } from './rules/document.js';
 import { usageRules3 } from './rules/usage3.js';
+import { syllabusRules } from './rules/syllabus.js';
+import { analyseDocument2 } from './rules/document2.js';
 import { sectionModel } from './sections.js';
 import { guardSuggestion } from './guard.js';
 import { RULE_INFO } from './data/rule-info.js';
@@ -25,6 +27,7 @@ export { sentenceGroups, composeSentence, applyFixes, composeFixes } from './com
 export { RULE_INFO, ruleInfo } from './data/rule-info.js';
 export { isBulkSafe, BULK_SAFE } from './bulk.js';
 export { runGuidance, GUIDANCE_GROUPS } from './guidance.js';
+export { paragraphStats } from './paragraphs.js';
 
 const PRIORITY = { correctness: 0, clarity: 1, voice: 2, engagement: 3 };
 export const DEFAULT_OPTIONS = {
@@ -87,6 +90,9 @@ export function runChecks(text, options = {}) {
   if (opts.categories.correctness || opts.categories.clarity) lists.push(usageRules(text, opts), usageRules2(text, opts), usageRules3(text, opts));
   // Round 6: mechanical document findings (consistency, numbers, redefined acronyms, missing full stops) and claim advice as inline cards.
   lists.push(analyseDocument(text, opts).inline.filter((s) => opts.categories[s.category] !== false));
+  // Round 9: new rules on the shared chunker, and new document findings. Older rules are unchanged.
+  lists.push(syllabusRules(text, opts).filter((s) => opts.categories[s.category] !== false));
+  lists.push(analyseDocument2(text, opts).inline.filter((s) => opts.categories[s.category] !== false));
   if (opts.categories.engagement) lists.push(engagementRules(text, opts));
   if (opts.categories.voice) lists.push(voiceRules(text, opts), deliveryRules(text, opts.goals || {}));
   // Round 7 (M4): style rules don't judge the title, headings or the Keywords line.
@@ -106,6 +112,16 @@ export function runChecks(text, options = {}) {
     if (s.rule !== 'long-sentence' || s.fixes.length) continue;
     const inner = out.filter((x) => x.scope !== 'sentence' && x.fixes.length && x.start >= s.start && x.end <= s.end).length;
     if (inner >= 2) s.message += ` It has ${inner} smaller fixes marked inside; "Improve this sentence" applies them together.`;
+  }
+  // Round 9: a ", with …" split joins the long-sentence card for that sentence instead of adding a second card.
+  for (const w of out.filter((x) => x.rule === 'with-clause')) {
+    const ls = out.find((x) => x.rule === 'long-sentence' && x.start <= w.start && x.end >= w.end);
+    if (!ls) continue;
+    if (!ls.fixes.length && w.fixes.length) {
+      ls.fixes = w.fixes;
+      ls.message = `${ls.message.replace(/ There's no clean break to split at automatically; try ending the sentence after the main point\./, '')} It splits cleanly at ", with": the fix makes two sentences from your own words.`;
+    }
+    out.splice(out.indexOf(w), 1);
   }
   return out;
 }

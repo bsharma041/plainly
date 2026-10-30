@@ -84,7 +84,7 @@ test('R2b never fires on a heading line', () => {
 // ---------- E2, E5 ----------
 test('E2: goa-abstract has the same 14 cards and first fixes; clean-academic 0', () => {
   assert.deepEqual(runChecks(GOA).map((s) => [s.rule, s.fixes[0]?.text ?? null]), [
-    ['title-case', 'power'], ['compound-subject', 'are'], ['plain-word', 'shows'], ['long-sentence', null], ['serial-comma', 'ecosystem, and'],
+    ['title-case', 'power'], ['compound-subject', 'are'], ['plain-word', 'shows'], ['long-sentence', '. Thermal power comprises'], ['serial-comma', 'ecosystem, and'], // round 9: ', with' split (round-8 backlog)
     ['article-idiom', 'the'], ['long-sentence', null], ['both-and', 'both centralised and decentralised approaches'], ['long-sentence', null],
     ['wordy-purpose', 'aims to identify'], ['vague-phrase', null], ['preposition', 'suitable for'], ['list-parallel', 'able to support'],
     ['nominalisation', 'how to decarbonise']]);
