@@ -10,6 +10,9 @@ import { analyseDocument } from './rules/document.js';
 import { usageRules3 } from './rules/usage3.js';
 import { syllabusRules } from './rules/syllabus.js';
 import { analyseDocument2 } from './rules/document2.js';
+import { parityRules } from './rules/parity.js';
+import { analyseDocument3 } from './rules/document3.js';
+import { styleGuideRules } from './rules/styleguide.js';
 import { sectionModel } from './sections.js';
 import { guardSuggestion } from './guard.js';
 import { RULE_INFO } from './data/rule-info.js';
@@ -28,6 +31,7 @@ export { RULE_INFO, ruleInfo } from './data/rule-info.js';
 export { isBulkSafe, BULK_SAFE } from './bulk.js';
 export { runGuidance, GUIDANCE_GROUPS } from './guidance.js';
 export { paragraphStats } from './paragraphs.js';
+export { cleanStyleGuide } from './rules/styleguide.js';
 
 const PRIORITY = { correctness: 0, clarity: 1, voice: 2, engagement: 3 };
 export const DEFAULT_OPTIONS = {
@@ -37,7 +41,8 @@ export const DEFAULT_OPTIONS = {
   repetition: true,       // flag a word repeated in a few lines
   domain: 'general',      // general | academic | technical | business | casual | creative
   serialComma: 'auto',    // auto (follow the document's majority) | always | never
-  goals: { formality: 'neutral', confident: false },
+  goals: { formality: 'neutral', confident: false, polite: false },
+  styleGuide: [],             // round 10: the writer's own [{ flag, suggest, note }]
   categories: { correctness: true, clarity: true, engagement: true, voice: true },
 };
 
@@ -93,6 +98,10 @@ export function runChecks(text, options = {}) {
   // Round 9: new rules on the shared chunker, and new document findings. Older rules are unchanged.
   lists.push(syllabusRules(text, opts).filter((s) => opts.categories[s.category] !== false));
   lists.push(analyseDocument2(text, opts).inline.filter((s) => opts.categories[s.category] !== false));
+  // Round 10: Grammarly paid-tier gap closers (closed lists), citation consistency and the writer's own style guide.
+  lists.push(parityRules(text, opts).filter((s) => opts.categories[s.category] !== false));
+  lists.push(analyseDocument3(text).inline.filter((s) => opts.categories[s.category] !== false));
+  lists.push(styleGuideRules(text, opts));
   if (opts.categories.engagement) lists.push(engagementRules(text, opts));
   if (opts.categories.voice) lists.push(voiceRules(text, opts), deliveryRules(text, opts.goals || {}));
   // Round 7 (M4): style rules don't judge the title, headings or the Keywords line.
@@ -122,6 +131,11 @@ export function runChecks(text, options = {}) {
       ls.message = `${ls.message.replace(/ There's no clean break to split at automatically; try ending the sentence after the main point\./, '')} It splits cleanly at ", with": the fix makes two sentences from your own words.`;
     }
     out.splice(out.indexOf(w), 1);
+  }
+  // Round 10: a sentence that is really a list gets the list card, not a second "split this sentence" card.
+  for (const b of out.filter((x) => x.rule === 'list-to-bullets')) {
+    const i = out.findIndex((x) => x.rule === 'long-sentence' && x.start === b.start && x.end === b.end);
+    if (i >= 0) out.splice(i, 1);
   }
   return out;
 }

@@ -1,7 +1,7 @@
 import {
   runChecks, mergeSuggestions, suggestionKey, guardSuggestion, remap, stats, overallScore, readabilityLabel,
   detectDialect, detectTone, TONE_INFO, DEFAULT_OPTIONS, sentenceGroups, composeSentence, RULE_INFO, isBulkSafe,
-  runGuidance, composeFixes, GUIDANCE_GROUPS, paragraphStats,
+  runGuidance, composeFixes, GUIDANCE_GROUPS, paragraphStats, cleanStyleGuide,
 } from './engine/index.js';
 import { checkWithLanguageTool } from './services/languagetool.js';
 import { synonymsFor } from './services/synonyms.js';
@@ -22,7 +22,7 @@ const els = {
 
 const CATEGORY_LABEL = { correctness: 'Correctness', clarity: 'Clarity', engagement: 'Engagement', voice: 'Delivery' };
 const RING_LEN = 119.4;
-const DEFAULT_GOALS = { audience: 'knowledgeable', formality: 'neutral', domain: 'general', confident: false };
+const DEFAULT_GOALS = { audience: 'knowledgeable', formality: 'neutral', domain: 'general', confident: false, polite: false };
 const DOMAIN_FORMALITY = { academic: 'formal', business: 'formal', technical: 'neutral', general: 'neutral', casual: 'informal', creative: 'informal' };
 const AUDIENCE_LIMIT = { general: 25, knowledgeable: 30, expert: 38 };
 
@@ -51,6 +51,7 @@ function cleanGoals(g) {
     if (['informal', 'neutral', 'formal'].includes(g.formality)) out.formality = g.formality;
     if (DOMAIN_FORMALITY[g.domain]) out.domain = g.domain;
     if (typeof g.confident === 'boolean') out.confident = g.confident;
+    if (typeof g.polite === 'boolean') out.polite = g.polite;
   }
   return out;
 }
@@ -66,6 +67,12 @@ function loadDocs() {
     docs = [{ id: newId(), title: typeof title === 'string' ? title : 'Welcome to Plainly', text: typeof draft === 'string' ? draft : SAMPLE, updated: Date.now(), goals: { ...DEFAULT_GOALS } }];
   }
   return docs;
+}
+
+function cleanSnippets(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter((x) => x && typeof x.name === 'string' && typeof x.text === 'string' && x.name.trim() && x.text.trim())
+    .map((x) => ({ name: x.name.trim().slice(0, 40), text: x.text.slice(0, 1000) })).slice(0, 50);
 }
 
 const savedSettings = store.get('settings', {});
@@ -86,6 +93,8 @@ const state = {
   criticalOnly: false, // U3 "Critical only" chip
   dismissed: new Set(asStrings(store.get('dismissed', []))),
   dictionary: new Set(asStrings(store.get('dictionary', []))),
+  styleGuide: cleanStyleGuide(store.get('styleGuide', [])), // round 10: the writer's own flag -> prefer list
+  snippets: cleanSnippets(store.get('snippets', [])), // round 10: the writer's own saved text
   settings: {
     dialect: ['auto', 'us', 'uk'].includes(savedSettings?.dialect) ? savedSettings.dialect : 'auto',
     deep: typeof savedSettings?.deep === 'boolean' ? savedSettings.deep : false,
@@ -158,7 +167,8 @@ function engineOptions() {
     repetition: state.settings.repetition,
     serialComma: state.settings.serialComma,
     domain: g.domain, // academic/technical: no repetition or plain-word cards, longer sentence limit
-    goals: { formality: g.formality, confident: g.confident },
+    goals: { formality: g.formality, confident: g.confident, polite: g.polite },
+    styleGuide: state.styleGuide,
     categories: state.settings.categories,
   };
 }
@@ -902,6 +912,7 @@ function syncGoalsForm() {
   for (const r of els.goals.querySelectorAll('input[type="radio"]')) r.checked = g[r.name] === r.value;
   $('goal-domain').value = g.domain;
   $('goal-confident').checked = g.confident;
+  $('goal-polite').checked = g.polite;
 }
 
 function setGoal(patch) {
@@ -1158,6 +1169,7 @@ els.goals.addEventListener('change', (e) => {
   const t = e.target;
   if (t.type === 'radio') setGoal({ [t.name]: t.value });
   else if (t.id === 'goal-confident') setGoal({ confident: t.checked });
+  else if (t.id === 'goal-polite') setGoal({ polite: t.checked });
   else if (t.id === 'goal-domain') { setGoal({ domain: t.value, formality: DOMAIN_FORMALITY[t.value] }); syncGoalsForm(); }
 });
 $('goals-reset').addEventListener('click', () => { setGoal({ ...DEFAULT_GOALS }); syncGoalsForm(); });
@@ -1212,6 +1224,12 @@ function syncSettingsForm() {
   $('dict').innerHTML = state.dictionary.size
     ? [...state.dictionary].sort().map((w) => `<span class="chip">${escapeHtml(w)}<button type="button" data-word="${escapeHtml(w)}" aria-label="Remove ${escapeHtml(w)}">×</button></span>`).join('')
     : '<span class="dict-empty">Words you add from spelling suggestions show up here.</span>';
+  $('sg-list').innerHTML = state.styleGuide.length
+    ? state.styleGuide.map((e, i) => `<span class="chip">${escapeHtml(e.flag)}${e.suggest ? ` → ${escapeHtml(e.suggest)}` : ''}<button type="button" data-sg="${i}" aria-label="Remove ${escapeHtml(e.flag)}">×</button></span>`).join('')
+    : '<span class="dict-empty">Nothing yet.</span>';
+  $('snip-chips').innerHTML = state.snippets.length
+    ? state.snippets.map((e, i) => `<span class="chip" title="${escapeHtml(e.text)}">${escapeHtml(e.name)}<button type="button" data-snip="${i}" aria-label="Remove ${escapeHtml(e.name)}">×</button></span>`).join('')
+    : '<span class="dict-empty">Nothing yet.</span>';
 }
 for (const b of document.querySelectorAll('[data-open-settings]')) b.addEventListener('click', () => { syncSettingsForm(); els.settings.showModal(); });
 setDialect.addEventListener('change', () => { state.settings.dialect = setDialect.value; saveSettings(); if (state.docId) { runLocal(); scheduleRemote(100); } });
@@ -1243,6 +1261,62 @@ $('dict').addEventListener('click', (e) => {
   syncSettingsForm();
   if (state.docId) recompute();
 });
+// Round 10: style guide and snippets. Both hold only what the writer types.
+function addPair(aId, bId, add) {
+  const a = $(aId), b = $(bId);
+  if (!a.value.trim()) { a.focus(); return; }
+  add(a.value, b.value);
+  a.value = ''; b.value = '';
+  syncSettingsForm();
+  renderSnippetMenu();
+  a.focus();
+}
+const addStyleEntry = () => addPair('sg-flag', 'sg-suggest', (flag, suggest) => {
+  state.styleGuide = cleanStyleGuide([...state.styleGuide.filter((e) => e.flag.toLowerCase() !== flag.trim().toLowerCase()), { flag, suggest }]);
+  store.set('styleGuide', state.styleGuide);
+  if (state.docId) runLocal();
+});
+const addSnippet = () => {
+  if (!$('snip-text').value.trim()) { $('snip-text').focus(); return; }
+  addPair('snip-name', 'snip-text', (name, text) => {
+    state.snippets = cleanSnippets([...state.snippets.filter((e) => e.name !== name.trim()), { name, text }]);
+    store.set('snippets', state.snippets);
+  });
+};
+$('sg-add').addEventListener('click', addStyleEntry);
+$('snip-add').addEventListener('click', addSnippet);
+for (const [ids, fn] of [[['sg-flag', 'sg-suggest'], addStyleEntry], [['snip-name', 'snip-text'], addSnippet]]) {
+  for (const id of ids) $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fn(); } });
+}
+$('sg-list').addEventListener('click', (e) => {
+  const i = e.target.dataset?.sg;
+  if (i == null) return;
+  state.styleGuide = state.styleGuide.filter((_, k) => k !== Number(i));
+  store.set('styleGuide', state.styleGuide);
+  syncSettingsForm();
+  if (state.docId) runLocal();
+});
+$('snip-chips').addEventListener('click', (e) => {
+  const i = e.target.dataset?.snip;
+  if (i == null) return;
+  state.snippets = state.snippets.filter((_, k) => k !== Number(i));
+  store.set('snippets', state.snippets);
+  syncSettingsForm();
+  renderSnippetMenu();
+});
+function renderSnippetMenu() {
+  $('snip-list').innerHTML = state.snippets.length
+    ? state.snippets.map((e, i) => `<button role="menuitem" data-snip="${i}" title="${escapeHtml(e.text)}">${escapeHtml(e.name)}</button>`).join('')
+    : '<span class="menu-empty">No snippets yet. Add your own in Settings.</span>';
+}
+$('snip-list').addEventListener('click', (e) => {
+  const snip = state.snippets[Number(e.target.dataset?.snip)];
+  if (!snip) return;
+  $('snip-menu').open = false;
+  replaceRange(els.input.selectionStart, els.input.selectionEnd, snip.text);
+});
+renderSnippetMenu();
+
 $('muted').addEventListener('click', (e) => {
   const r = e.target.dataset?.rule;
   if (!r) return;

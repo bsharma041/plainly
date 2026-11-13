@@ -1,13 +1,15 @@
 # Adding a rule
 
-Rules shipped in rounds 1–8 are frozen. Change one only when a failing regression test proves a bug. New grammar goes in new rule IDs.
+Rules shipped in rounds 1–9 are frozen. Change one only when a failing regression test proves a bug. New grammar goes in new rule IDs.
 
 ## Where
 
 | What | File |
 | --- | --- |
 | Sentence-level rule | `src/engine/rules/syllabus.js` (add to `ROUND9_RULES`, or start a new file for a later round) |
-| Document-level guidance | `src/engine/rules/document2.js` |
+| Phrase-list rule (inclusive language, tone, fluency, clichés) | `src/engine/rules/parity.js` (add to `ROUND10_RULES`; inserts go in `ROUND10_INSERTS`) |
+| Document-level guidance | `src/engine/rules/document2.js`, `document3.js` (citations) |
+| The writer's own style guide | `src/engine/rules/styleguide.js` (no built-in entries, ever) |
 | Tags and clause breaks | `src/engine/chunk.js` (closed lists only; no statistics, no model) |
 | Words a fix may add | `ROUND9_INSERTS` in `syllabus.js` (the guard adds them to its closed vocabulary) |
 | Name, explanation, example | `src/engine/data/rule-info.js` |
@@ -27,5 +29,5 @@ Rules shipped in rounds 1–8 are frozen. Change one only when a failing regress
 - A model, ranking or statistical tagger in the edit path.
 - Auto-apply, or a fix that adds a word outside the writer's span, the closed lists or (for consistency rules only) the same document.
 - A paragraph-level rewrite. "Improve this sentence" only stacks named, guarded fixes.
-- Loosening `guard.js` beyond adding closed words for a new rule.
+- Loosening `guard.js` beyond adding closed words for a new rule. The one exception is `writerWords`: a local `style-guide` fix may add words the writer typed into their own style guide. No other rule may use it.
 - When unsure, give advice with no fix, or stay silent.

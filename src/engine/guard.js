@@ -16,6 +16,7 @@ import { neitherPairsWithOr } from './neither.js';
 import { LIGHT_VERB_INSERTS } from './data/document-lists.js';
 import { REGISTER_INSERTS } from './rules/usage3.js';
 import { ROUND9_INSERTS } from './rules/syllabus.js';
+import { ROUND10_INSERTS } from './rules/parity.js';
 import { words } from './text.js';
 
 const lower = (s) => s.toLowerCase().replace(/[’]/g, "'");
@@ -39,6 +40,7 @@ addAll(USAGE_INSERTS);
 addAll(LIGHT_VERB_INSERTS); // round 6 (B3)
 addAll(REGISTER_INSERTS); // round 6 (IE1, P1)
 addAll(ROUND9_INSERTS); // round 9 (rules/syllabus.js)
+addAll(ROUND10_INSERTS); // round 10 (rules/parity.js)
 Object.values(NOMINALISATIONS).flat().forEach(addAll);
 Object.values(NOMINALISATIONS_US).flat().forEach(addAll);
 addAll(`I me we us he him she her they them it you someone whom who
@@ -125,7 +127,9 @@ export function isNeitherNorSwap(text, fix) {
 // word that isn't in the span or the closed lists, but only if it occurs verbatim elsewhere in the document.
 export const DOC_VARIANT_RULES = new Set(['consistency-spelling', 'consistency-hyphen', 'consistency-case', 'consistency-percent', 'number-grouping', 'number-separator', 'date-format']);
 
-export function checkFix(text, fix, { remote = false, maxGrowth = 4, docVariant = false } = {}) {
+// Round 10: `writerWords` are words the writer typed into their own style guide. Only a local 'style-guide'
+// fix may pass them; they never excuse an AI-filler word, a negation, an em dash or the growth limit.
+export function checkFix(text, fix, { remote = false, maxGrowth = 4, docVariant = false, writerWords = null } = {}) {
   // Central guardrail: every edit must be a well-formed span in the current text.
   if (typeof text !== 'string' || !fix || typeof fix.text !== 'string'
     || !Number.isSafeInteger(fix.start) || !Number.isSafeInteger(fix.end)
@@ -154,6 +158,7 @@ export function checkFix(text, fix, { remote = false, maxGrowth = 4, docVariant 
       docWords ??= new Set(tokens(text.slice(0, fix.start) + ' ' + text.slice(fix.end)));
       if (docWords.has(w)) continue;
     }
+    if (writerWords && !remote && writerWords.has(lower(w))) continue;
     if (!CLOSED.has(w) && !isFormOf(w, own)) return { ok: false, reason: `adds outside word "${w}"` };
   }
   // maxGrowth is raised only for a composed sentence preview (U1), whose parts each passed with the
@@ -176,6 +181,7 @@ export const isSafeFix = (text, fix, opts) => checkFix(text, fix, opts).ok;
 export function guardSuggestion(text, s) {
   const remote = s.source === 'languagetool';
   const docVariant = !remote && DOC_VARIANT_RULES.has(s.rule);
-  const fixes = s.fixes.filter((f) => isSafeFix(text, f, { remote, docVariant }));
+  const writerWords = !remote && s.rule === 'style-guide' && Array.isArray(s.writerWords) ? new Set(s.writerWords.map(lower)) : null;
+  const fixes = s.fixes.filter((f) => isSafeFix(text, f, { remote, docVariant, writerWords }));
   return fixes.length === s.fixes.length ? s : { ...s, fixes };
 }

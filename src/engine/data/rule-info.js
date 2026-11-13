@@ -210,6 +210,14 @@ export const RULE_INFO = {
   'acronym-unused': { name: 'Unused acronym', explanation: 'An acronym defined once and never used again is extra load for the reader.', example: { wrong: 'Time of Day (ToD) tariffs … (ToD never used again)', right: 'Time of Day tariffs …' } },
   'paragraph-rhythm': { name: 'Sentence rhythm', explanation: 'A paragraph of equal-length sentences reads flat. Varying the length helps key points stand out.', example: { wrong: 'Four sentences of 16–18 words each', right: 'Long, long, short' } },
   'paragraph-one-sentence': { name: 'Long one-sentence paragraph', explanation: 'A whole paragraph in one long sentence gives the reader no pause.', example: { wrong: 'One 50-word sentence as a paragraph', right: 'Two or three sentences' } },
+  'inclusive-language': { name: 'Inclusive language', explanation: 'Some words name a gender or a condition where the role or the person is what matters. A neutral word includes every reader.', example: { wrong: 'The chairman opened the meeting.', right: 'The chair opened the meeting.' } },
+  'polite-tone': { name: 'Polite tone', explanation: 'Orders and reminders of a mistake can read as rude in a work message. A request gets the same result.', example: { wrong: 'You need to send the report.', right: 'Please send the report.' } },
+  fluency: { name: 'Natural English', explanation: 'Some phrases are carried over from other languages and are not standard in English.', example: { wrong: 'Please explain me the rule.', right: 'Please explain to me the rule.' } },
+  'dull-word': { name: 'Overused plain word', explanation: 'A word like "good" used again and again tells the reader little. A more exact word says what kind of good you mean.', example: { wrong: 'a good plan … good work … a good year', right: 'a sound plan … good work … a strong year' } },
+  cliche: { name: 'Worn phrase', explanation: 'Stock phrases are so familiar that readers skip them. The plain version is usually shorter.', example: { wrong: 'At the end of the day, cost matters.', right: 'In the end, cost matters.' } },
+  'list-to-bullets': { name: 'List in a sentence', explanation: 'Three or more long items in one sentence are easier to read as a bulleted list.', example: { wrong: 'The plan needs: a budget for year one; an owner in each district; and a review date.', right: 'The plan needs:\n- a budget for year one\n- an owner in each district\n- a review date.' } },
+  'citation-style': { name: 'Citation style', explanation: 'Citations should follow one style throughout a document.', example: { wrong: '(Smith, 2020) … (Jones 2021)', right: '(Smith, 2020) … (Jones, 2021)' } },
+  'style-guide': { name: 'Your style guide', explanation: 'A word or phrase you asked Plainly to flag in Settings.', example: { wrong: 'A term you listed', right: 'The term you prefer' } },
 };
 
 export function ruleInfo(rule) {

@@ -464,3 +464,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide-inst b { color: var(--text); }
 .guide-inst.has-fix { border-left: 3px solid var(--brand); }
 .guide-to { margin-left: 6px; color: var(--brand); font: 600 12px var(--font-ui); }
+
+/* Round 10: style guide and snippets */
+.pair-row { display: flex; gap: 6px; margin: 6px 0 8px; flex-wrap: wrap; }
+.pair-row input { flex: 1 1 140px; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; }
+.menu-empty { display: block; padding: 8px 12px; color: var(--text-3); font-size: 13px; max-width: 220px; }

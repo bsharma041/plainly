@@ -48,6 +48,10 @@
         </label>
         <button class="btn ghost" id="btn-goals" title="Set goals for this document">Goals</button>
         <button class="btn ghost" id="btn-perf" title="Performance report">Performance</button>
+        <details class="menu" id="snip-menu">
+          <summary class="btn ghost" title="Insert a saved snippet at the cursor">Snippets</summary>
+          <div class="menu-list" role="menu" id="snip-list"></div>
+        </details>
         <details class="menu">
           <summary class="btn ghost" title="File">File</summary>
           <div class="menu-list" role="menu">
@@ -167,6 +171,7 @@
       <fieldset class="field">
         <legend>Tone</legend>
         <label class="check"><input type="checkbox" id="goal-confident"> Sound confident (flags hedges like "I think", "maybe", "sort of")</label>
+        <label class="check"><input type="checkbox" id="goal-polite"> Sound polite (flags orders like "You need to" and "ASAP"; always on for Business)</label>
       </fieldset>
       <div class="dialog-actions"><button class="btn ghost" value="reset" id="goals-reset" type="button">Reset to defaults</button><button class="btn primary" value="close">Done</button></div>
     </form>
@@ -223,6 +228,26 @@
       <div class="field">
         <span>Personal dictionary</span>
         <div class="dict" id="dict"></div>
+      </div>
+      <div class="field">
+        <span>Your style guide</span>
+        <span class="field-sub">Words or phrases to flag, and the wording you prefer. Plainly offers only what you type here.</span>
+        <div class="pair-row">
+          <input id="sg-flag" type="text" maxlength="80" placeholder="Flag this (e.g. log in)" aria-label="Phrase to flag">
+          <input id="sg-suggest" type="text" maxlength="80" placeholder="Prefer this (optional)" aria-label="Preferred wording">
+          <button type="button" class="btn ghost" id="sg-add">Add</button>
+        </div>
+        <div class="dict" id="sg-list"></div>
+      </div>
+      <div class="field">
+        <span>Snippets</span>
+        <span class="field-sub">Text you reuse, such as a sign-off. Insert one from the Snippets menu in the editor.</span>
+        <div class="pair-row">
+          <input id="snip-name" type="text" maxlength="40" placeholder="Name (e.g. Sign-off)" aria-label="Snippet name">
+          <input id="snip-text" type="text" maxlength="1000" placeholder="Your text" aria-label="Snippet text">
+          <button type="button" class="btn ghost" id="snip-add">Add</button>
+        </div>
+        <div class="dict" id="snip-chips"></div>
       </div>
       <div class="field">
         <button type="button" class="btn ghost" id="btn-undismiss">Show dismissed suggestions again</button>
